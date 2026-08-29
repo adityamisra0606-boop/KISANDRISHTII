@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KisanDrishti - Autonomous Smart Crop Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root {
+            --primary: #1b4332;
+            --secondary: #2d6a4f;
+            --accent: #52b788;
+            --highlight: #d8f3dc;
+            --warning: #e76f51;
+            --dark: #081c15;
+            --light: #f8f9fa;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body {
+            background: linear-gradient(135deg, rgba(8, 28, 21, 0.92), rgba(27, 67, 50, 0.95)), 
+                        url('https://images.unsplash.com/photo-1500937386664-56d1dfef3854?q=80&w=2000&auto=format&fit=crop') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+        .navbar {
+            background: rgba(8, 28, 21, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 40px; border-bottom: 1px solid rgba(82, 183, 136, 0.2);
+            position: sticky; top: 0; z-index: 1000;
+        }
+        .nav-brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.25rem; }
+        .nav-logo-box {
+            background: var(--accent); color: var(--dark); width: 38px; height: 38px; border-radius: 8px;
+            display: flex; justify-content: center; align-items: center; font-weight: 800; font-size: 1.2rem;
+        }
+        .nav-controls { display: flex; gap: 15px; align-items: center; }
+        .lang-dropdown {
+            background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 14px; border-radius: 6px; font-size: 0.9rem; outline: none; cursor: pointer;
+        }
+        .lang-dropdown option { background: var(--dark); color: white; }
+        .hero { text-align: center; padding: 35px 20px 10px 20px; }
+        .hero h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 8px; color: #e9f5ed; }
+        .hero p { color: #b7e4c7; font-size: 1rem; }
+        
+        .dashboard-container {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px; padding: 30px 40px 50px 40px; max-width: 1400px; margin: 0 auto; width: 100%;
+        }
+        .card {
+            background: rgba(27, 67, 50, 0.75); backdrop-filter: blur(12px);
+            border: 1px solid rgba(82, 183, 136, 0.25); border-radius: 14px; padding: 25px;
+            display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+        .card-title {
+            font-size: 1.15rem; font-weight: 600; margin-bottom: 18px; color: #d8f3dc;
+            border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .gps-status { font-size: 0.75rem; background: rgba(82, 183, 136, 0.2); padding: 4px 8px; border-radius: 4px; color: #95d5b2; }
+        .upload-zone {
+            border: 2px dashed rgba(82, 183, 136, 0.4); padding: 25px; text-align: center;
+            border-radius: 10px; background: rgba(0,0,0,0.15); cursor: pointer; transition: 0.3s; margin-bottom: 15px;
+        }
+        .upload-zone:hover { border-color: var(--accent); background: rgba(0,0,0,0.25); }
+        input[type="file"] { display: none; }
+        .upload-label { cursor: pointer; font-size: 0.9rem; color: #b7e4c7; display: block; }
+        .preview-img { width: 100%; height: 140px; object-fit: cover; border-radius: 8px; margin-bottom: 15px; display: none; border: 1px solid var(--accent); }
+        .btn {
+            background: var(--accent); color: var(--dark); border: none; padding: 12px;
+            width: 100%; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; transition: 0.2s; margin-top: auto;
+        }
+        .btn:hover:not(:disabled) { background: #74c69d; transform: translateY(-1px); }
+        .btn:disabled { background: #495057; color: #adb5bd; cursor: not-allowed; }
+        .audio-controls { display: flex; gap: 8px; margin-bottom: 15px; }
+        .btn-audio {
+            background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; flex: 1;
+        }
+        .btn-audio:hover { background: rgba(255,255,255,0.2); }
+        .metric-box { background: rgba(0,0,0,0.2); padding: 14px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid var(--accent); }
+        .metric-label { font-size: 0.8rem; color: #95d5b2; margin-bottom: 4px; }
+        .metric-value { font-size: 0.95rem; color: #f8f9fa; line-height: 1.4; }
+        .full-width { grid-column: 1 / -1; }
+        #map { width: 100%; height: 380px; border-radius: 10px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-brand">
+            <div class="nav-logo-box">KD</div>
+            <span id="navBrandText">KISAN DRISHTI AI</span>
+        </div>
+        <div class="nav-controls">
+            <select id="langSelect" class="lang-dropdown" onchange="changeLanguage()">
+                <option value="en">English</option>
+                <option value="hi">हिंदी (Hindi)</option>
+                <option value="bn" selected>বাংলা (Bengali)</option>
+                <option value="te">తెలుగు (Telugu)</option>
+                <option value="mr">मराठी (Marathi)</option>
+                <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+            </select>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1 id="heroTitle">Smart Crop Diagnostics & Geolocation Defense</h1>
+        <p id="heroSub">Multilingual AI-driven field intelligence safeguarding smallholder farming yields.</p>
+    </div>
+
+    <div class="dashboard-container">
+        
+        <div class="card">
+            <div class="card-title">
+                <span id="cardTitleGps">📍 GPS & Nearby Farm Intel</span>
+                <span class="gps-status" id="gpsStatus">Acquiring Fix...</span>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label" id="lblCoords">Live Coordinates</div>
+                <div class="metric-value" id="coordsValue">Detecting location...</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label" id="lblMicroclimate">Local Microclimate Risk</div>
+                <div class="metric-value" id="climateValue">High humidity detected (87%). Spore propagation active.</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" id="cardTitleScanner">🔬 AI Leaf Scanner</div>
+            <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                <span class="upload-label" id="uploadInstruction">📁 Click or Drop Affected Leaf Image Here</span>
+                <input type="file" id="fileInput" accept="image/*" onchange="previewFile(event)">
+            </div>
+            <img id="imagePreview" class="preview-img" alt="Leaf Preview">
+            <div id="loadingText" style="text-align:center; font-size:0.85rem; color:var(--accent); display:none; margin-bottom:10px;">Analyzing pathological features...</div>
+            <button id="scanBtn" class="btn" onclick="runAnalysis()" disabled>Run Deep Diagnostic Scan</button>
+        </div>
+
+        <div class="card">
+            <div class="card-title" id="cardTitleDiagnosis">📋 Pathological Diagnosis</div>
+            <div class="audio-controls">
+                <button class="btn-audio" onclick="readAloud()" id="audioBtn">🔊 Read Aloud</button>
+                <select id="audioLangSelect" class="lang-dropdown" style="padding: 4px 8px; font-size: 0.8rem;">
+                    <option value="auto">Match UI Language</option>
+                    <option value="en-US">English (US)</option>
+                    <option value="hi-IN">हिंदी (Hindi)</option>
+                    <option value="bn-IN">বাংলা (Bengali)</option>
+                    <option value="te-IN">తెలుగు (Telugu)</option>
+                    <option value="mr-IN">मराठी (Marathi)</option>
+                    <option value="pa-IN">ਪੰਜਾਬੀ (Punjabi)</option>
+                </select>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label" id="lblDetectedDisease">Identified Condition</div>
+                <div class="metric-value" id="diseaseOutput" style="color: #ffadad; font-weight:600;">Awaiting scan input...</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label" id="lblInfectionSeverity">Infection Severity Index</div>
+                <div class="metric-value" id="severityOutput">0%</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label" id="lblSymptoms">Observed Symptom Pattern</div>
+                <div class="metric-value" id="symptomsOutput">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" id="cardTitleTreatment">💊 Prescriptive Treatment Plan</div>
+            <div class="metric-box" style="border-left-color: #52b788;">
+                <div class="metric-label" id="lblOrganic">🌱 Biological / Organic Action</div>
+                <div class="metric-value" id="organicOutput">--</div>
+            </div>
+            <div class="metric-box" style="border-left-color: #ffd166;">
+                <div class="metric-label" id="lblChemical">🧪 Chemical Treatment Solution</div>
+                <div class="metric-value" id="chemicalOutput">--</div>
+            </div>
+        </div>
+
+        <div class="card full-width">
+            <div class="card-title" id="cardTitleMap">🗺️ Regional Farm Outbreak & Threat Cluster Map</div>
+            <div id="map"></div>
+        </div>
+
+    </div>
+
+<script>
+    let selectedFile = null;
+    let currentAnalysis = null;
+    let map, userMarker;
+    let outbreakLayerGroup = L.layerGroup();
+    let isGpsActive = false; // Tracks if GPS is live or fallback
+
+    // Ensure voices are loaded for the TTS engine
+    let synthVoices = [];
+    window.speechSynthesis.onvoiceschanged = () => {
+        synthVoices = window.speechSynthesis.getVoices();
+    };
+
+    // Dictionary with newly added GPS & Climate translations
+    const translations = {
+        en: {
+            heroTitle: "Smart Crop Diagnostics & Geolocation Defense", heroSub: "Multilingual AI-driven field intelligence safeguarding smallholder farming yields.",
+            cardTitleGps: "📍 GPS & Nearby Farm Intel", cardTitleScanner: "🔬 AI Leaf Scanner", uploadInstruction: "📁 Click or Drop Affected Leaf Image Here",
+            scanBtn: "Run Deep Diagnostic Scan", cardTitleDiagnosis: "📋 Pathological Diagnosis", audioBtn: "🔊 Read Aloud", cardTitleTreatment: "💊 Prescriptive Treatment Plan",
+            cardTitleMap: "🗺️ Regional Farm Outbreak & Threat Cluster Map", lblCoords: "Live Coordinates", lblMicroclimate: "Local Microclimate Risk",
+            lblDetectedDisease: "Identified Condition", lblInfectionSeverity: "Infection Severity Index", lblSymptoms: "Observed Symptom Pattern",
+            lblOrganic: "🌱 Biological / Organic Action", lblChemical: "🧪 Chemical Treatment Solution", awaiting: "Awaiting scan input...",
+            userLocationPopup: "<b>Your Farm Location</b><br/>Active Monitoring Node", cluster1: "Cluster Farm #1", cluster2: "Cluster Farm #2", cluster3: "Cluster Farm #3",
+            threat1: "Early Blight Spore Warning", threat2: "Wheat Yellow Rust Alert", threat3: "High Humidity Fungal Alert",
+            gpsLive: "GPS Active (Live Fix)", gpsFallback: "GPS Fallback (Cluster Mode)", locCurrent: "Current Location", locDefault: "Default Zone",
+            climateMsg: "High humidity detected (87%). Spore propagation active."
+        },
+        hi: {
+            heroTitle: "स्मार्ट फसल निदान और जीपीएस सुरक्षा", heroSub: "छोटे किसानों की उपज की रक्षा करने वाली बहुभाषी एआई-संचालित कृषि बुद्धिमत्ता।",
+            cardTitleGps: "📍 जीपीएस और आस-पास के खेतों की जानकारी", cardTitleScanner: "🔬 एआई पत्ती स्कैनर", uploadInstruction: "📁 प्रभावित पत्ती की छवि यहां अपलोड करें",
+            scanBtn: "गहन नैदानिक स्कैन चलाएं", cardTitleDiagnosis: "📋 रोग संबंधी निदान", audioBtn: "🔊 बोलकर सुनें", cardTitleTreatment: "💊 नुस्खे और उपचार योजना",
+            cardTitleMap: "🗺️ क्षेत्रीय कृषि प्रकोप और खतरा क्लस्टर मानचित्र", lblCoords: "लाइव निर्देशांक", lblMicroclimate: "स्थानीय सूक्ष्म जलवायु जोखिम",
+            lblDetectedDisease: "पहचाने गए रोग की स्थिति", lblInfectionSeverity: "संक्रमण गंभीरता सूचकांक", lblSymptoms: "देखे गए लक्षण पैटर्न",
+            lblOrganic: "🌱 जैविक उपाय", lblChemical: "🧪 रासायनिक समाधान", awaiting: "स्कैन इनपुट की प्रतीक्षा है...",
+            userLocationPopup: "<b>आपका खेत स्थान</b><br/>सक्रिय निगरानी नोड", cluster1: "क्लस्टर फार्म #1", cluster2: "क्लस्टर फार्म #2", cluster3: "क्लस्टर फार्म #3",
+            threat1: "अतीव झुलसा बीजाणु चेतावनी", threat2: "गेहूं पीला रतुआ चेतावनी", threat3: "उच्च आर्द्रता कवक चेतावनी",
+            gpsLive: "जीपीएस सक्रिय (लाइव फिक्स)", gpsFallback: "जीपीएस फॉलबैक (क्लस्टर मोड)", locCurrent: "वर्तमान स्थान", locDefault: "डिफ़ॉल्ट ज़ोन",
+            climateMsg: "उच्च आर्द्रता पाई गई (87%)। बीजाणु प्रसार सक्रिय है।"
+        },
+        bn: {
+            heroTitle: "স্মার্ট শস্য রোগ নির্ণয় এবং জিপিএস সুরক্ষা", heroSub: "ক্ষুদ্র কৃষকদের ফলন রক্ষাকারী বহুমুখী এআই-চালিত কৃষি বুদ্ধিমত্তা।",
+            cardTitleGps: "📍 জিপিএস এবং আশেপাশের খামারের তথ্য", cardTitleScanner: "🔬 এআই পাতা স্ক্যানার", uploadInstruction: "📁 আক্রান্ত পাতার ছবি এখানে আপলোড করুন",
+            scanBtn: "গভীর রোগ নির্ণয় স্ক্যান চালান", cardTitleDiagnosis: "📋 প্যাথলজিক্যাল রোগ নির্ণয়", audioBtn: "🔊 উচ্চস্বরে শুনুন", cardTitleTreatment: "💊 প্রতিকারমূলক চিকিৎসা পরিকল্পনা",
+            cardTitleMap: "🗺️ আঞ্চলিক খামার প্রাদুর্ভাব এবং হুমকি ক্লাস্টার মানচিত্র", lblCoords: "লাইভ স্থানাঙ্ক", lblMicroclimate: "স্থানীয় মাইক্রোক্লিমেট ঝুঁকি",
+            lblDetectedDisease: "চিহ্নিত রোগের অবস্থা", lblInfectionSeverity: "সংক্রমণের তীব্রতা সূচক", lblSymptoms: "পর্যবেক্ষণ করা লক্ষণ প্যাটার্ন",
+            lblOrganic: "🌱 জৈবিক প্রতিকার", lblChemical: "🧪 রাসায়নিক সমাধান", awaiting: "স্ক্যান ইনপুটের জন্য অপেক্ষা করা হচ্ছে...",
+            userLocationPopup: "<b>আপনার খামারের অবস্থান</b><br/>সক্রিয় পর্যবেক্ষণ নোড", cluster1: "ক্লাস্টার ফার্ম #১", cluster2: "ক্লাস্টার ফার্ম #২", cluster3: "ক্লাস্টার ফার্ম #৩",
+            threat1: "প্রাথমিক ব্লাইট স্পোর সতর্কতা", threat2: "গম হলুদ মরিচা সতর্কতা", threat3: "উচ্চ আর্দ্রতা ছত্রাক সতর্কতা",
+            gpsLive: "জিপিএস সক্রিয় (লাইভ ফিক্স)", gpsFallback: "জিপিএস ফলব্যাক (ক্লাস্টার মোড)", locCurrent: "বর্তমান অবস্থান", locDefault: "ডিফল্ট জোন",
+            climateMsg: "উচ্চ আর্দ্রতা শনাক্ত হয়েছে (৮৭%)। স্পোর বিস্তার সক্রিয়।"
+        },
+        te: {
+            heroTitle: "స్మార్ట్ పంట నిర్ధారణ & జిపిఎస్ రక్షణ", heroSub: "చిన్నకారు రైతుల పంట దిగుబడులను రక్షించే బహుభాషా ఏఐ సాంకేతికత.",
+            cardTitleGps: "📍 జిపిఎస్ & సమీప పొలాల సమాచారం", cardTitleScanner: "🔬 ఏఐ ఆకు స్కానర్", uploadInstruction: "📁 ప్రభావిత ఆకు చిత్రాన్ని ఇక్కడ అప్‌లోడ్ చేయండి",
+            scanBtn: "డయాగ్నొస్టిక్ స్కాన్ ప్రారంభించండి", cardTitleDiagnosis: "📋 వ్యాధి నిర్ధారణ వివరాలు", audioBtn: "🔊 ఆడియో వినండి", cardTitleTreatment: "💊 నివారణ ప్రణాళిక",
+            cardTitleMap: "🗺️ ప్రాంతీయ పొలాల వ్యాప్తి క్లస్టర్ మ్యాప్", lblCoords: "లైవ్ కోఆర్డినేట్లు", lblMicroclimate: "స్థానిక సూక్ష్మ వాతావరణ ప్రమాదం",
+            lblDetectedDisease: "గుర్తించబడిన పరిస్థితి", lblInfectionSeverity: "ఇన్ఫెక్షన్ తీవ్రత సూచిక", lblSymptoms: "గమనించిన లక్షణాలు",
+            lblOrganic: "🌱 ఆర్గానిక్ నివారణ", lblChemical: "🧪 రసాయన పరిష్కారం", awaiting: "స్కాన్ కోసం వేచి ఉంది...",
+            userLocationPopup: "<b>మీ పొలం ప్రదేశం</b><br/>యాక్టివ్ మానిటరింగ్ నోడ్", cluster1: "క్లస్టర్ ఫామ్ #1", cluster2: "క్లస్టర్ ఫామ్ #2", cluster3: "క్లస్టర్ ఫామ్ #3",
+            threat1: "ఎర్లీ బ్లైట్ స్పోర్ హెచ్చరిక", threat2: "గోధుమ పసుపు తుప్పు హెచ్చరిక", threat3: "అధిక తేమ ఫంగల్ హెచ్చరిక",
+            gpsLive: "GPS సక్రియం (లైవ్)", gpsFallback: "GPS ఫాల్‌బ్యాక్ (క్లస్టర్ మోడ్)", locCurrent: "ప్రస్తుత స్థానం", locDefault: "డిఫాల్ట్ జోన్",
+            climateMsg: "అధిక తేమ కనుగొనబడింది (87%). బీజాంశ వ్యాప్తి చురుకుగా ఉంది."
+        },
+        mr: {
+            heroTitle: "स्मार्ट पीक निदान आणि जीपीएस संरक्षण", heroSub: "अल्पभूधारक शेतकऱ्यांच्या पिकांचे रक्षण करणारी बहुभाषिक एआय प्रणाली.",
+            cardTitleGps: "📍 जीपीएस आणि जवळील शेतांची माहिती", cardTitleScanner: "🔬 एआय पान स्कॅनर", uploadInstruction: "📁 प्रभावित पानाचा फोटो येथे अपलोड करा",
+            scanBtn: "खोल निदान स्कॅन चालवा", cardTitleDiagnosis: "📋 पॅथॉलॉजिकल निदान", audioBtn: "🔊 आवाज ऐका", cardTitleTreatment: "💊 उपचारात्मक कृती योजना",
+            cardTitleMap: "🗺️ प्रादेशिक शेत प्रादुर्भाव क्लस्टर नकाशा", lblCoords: "थेट निर्देशक", lblMicroclimate: "स्थानिक सूक्ष्म हवामान धोका",
+            lblDetectedDisease: "ओळखलेली स्थिती", lblInfectionSeverity: "संक्रमण तीव्रता निर्देशांक", lblSymptoms: "निरीक्षण केलेले लक्षण पॅटर्न",
+            lblOrganic: "🌱 सेंद्रिय उपाय", lblChemical: "🧪 रासायनिक उपाय", awaiting: "स्कॅन इनपुट प्रतीक्षेत...",
+            userLocationPopup: "<b>तुमचे शेत स्थान</b><br/>सक्रिय मॉनिटरींग नोड", cluster1: "क्लस्टर फार्म #1", cluster2: "क्लस्टर फार्म #2", cluster3: "क्लस्टर फार्म #3",
+            threat1: "अर्ली ब्लाईट बिजाणू चेतावणी", threat2: "गहू पिवळा तांबेरा चेतावणी", threat3: "जास्त आर्द्रता बुरशी चेतावणी",
+            gpsLive: "जीपीएस सक्रिय (थेट)", gpsFallback: "जीपीएस फॉलबॅक (क्लस्टर मोड)", locCurrent: "सध्याचे स्थान", locDefault: "डिफॉल्ट झोन",
+            climateMsg: "जास्त आर्द्रता आढळली (87%). बीजाणू प्रसार सक्रिय आहे."
+        },
+        pa: {
+            heroTitle: "ਸਮਾਰਟ ਫਸਲ ਨਿਦਾਨ ਅਤੇ ਜੀਪੀਐਸ ਸੁਰੱਖਿਆ", heroSub: "ਛੋਟੇ ਕਿਸਾਨਾਂ ਦੀ ਫਸਲ ਦੀ ਪੈਦਾਵਾਰ ਨੂੰ ਬਚਾਉਣ ਲਈ ਬਹੁ-ਭਾਸ਼ਾਈ ਏਆਈ ਪ੍ਰਣਾਲੀ।",
+            cardTitleGps: "📍 ਜੀਪੀਐਸ ਅਤੇ ਨੇੜਲੇ ਖੇਤਾਂ ਦੀ ਜਾਣਕਾਰੀ", cardTitleScanner: "🔬 ਏਆਈ ਪੱਤਾ ਸਕੈਨਰ", uploadInstruction: "📁 ਪ੍ਰਭਾਵਿਤ ਪੱਤੇ ਦੀ ਤਸਵੀਰ ਇੱਥੇ ਅੱਪਲੋਡ ਕਰੋ",
+            scanBtn: "ਡੂੰਘੀ ਨਿਦਾਨ ਸਕੈਨ ਚਲਾਓ", cardTitleDiagnosis: "📋 ਰੋਗ ਵਿਗਿਆਨ ਨਿਦਾਨ", audioBtn: "🔊 ਆਡੀਓ ਆਉਟਪੁੱਟ ਸੁਣੋ", cardTitleTreatment: "💊 ਨੁਸਖ਼ਾ ਇਲਾਜ ਯੋਜਨਾ",
+            cardTitleMap: "🗺️ ਖੇਤਰੀ ਫਸਲ ਪ੍ਰਕੋਪ ਅਤੇ ਕਲੱਸਟਰ ਨਕਸ਼ਾ", lblCoords: "ਲਾਈਵ ਕੋਆਰਡੀਨੇਟਸ", lblMicroclimate: "ਸਥਾਨਕ ਸੂਖਮ ਜਲਵਾਯੂ ਜੋਖਮ",
+            lblDetectedDisease: "ਪਛਾਣਿਆ ਗਿਆ ਰੋਗ", lblInfectionSeverity: "ਲਾਗ ਦੀ ਗੰਭੀਰਤਾ ਸੂਚਕਾਂਕ", lblSymptoms: "ਦੇਖੇ ਗਏ ਲੱਛਣ ਪੈਟਰਨ",
+            lblOrganic: "🌱 ਜੈਵਿਕ ਉਪਚਾਰ", lblChemical: "🧪 ਰਸਾਇਣਕ ਹੱਲ", awaiting: "ਸਕੈਨ ਇਨਪੁਟ ਦੀ ਉਡੀਕ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ...",
+            userLocationPopup: "<b>ਤੁਹਾਡਾ ਖੇਤ ਸਥਾਨ</b><br/>ਸਰਗਰਮ ਨਿਗਰਾਨੀ ਨੋਡ", cluster1: "ਕਲੱਸਟਰ ਫਾਰਮ #1", cluster2: "ਕਲੱਸਟਰ ਫਾਰਮ #2", cluster3: "ਕਲੱਸਟਰ ਫਾਰਮ #3",
+            threat1: "ਅਰਲੀ ਬਲਾਈਟ ਸਪੋਰ ਚੇਤਾਵਨੀ", threat2: "ਕਣਕ ਪੀਲੀ ਕੁੰਗੀ ਚੇਤਾਵਨੀ", threat3: "ਉੱਚ ਨਮੀ ਉੱਲੀ ਚੇਤਾਵਨੀ",
+            gpsLive: "ਜੀਪੀਐਸ ਸਰਗਰਮ (ਲਾਈਵ)", gpsFallback: "ਜੀਪੀਐਸ ਫਾਲਬੈਕ (ਕਲੱਸਟਰ ਮੋਡ)", locCurrent: "ਮੌਜੂਦਾ ਸਥਾਨ", locDefault: "ਡਿਫੌਲਟ ਜ਼ੋਨ",
+            climateMsg: "ਉੱਚ ਨਮੀ ਦਾ ਪਤਾ ਲੱਗਾ (87%)। ਸਪੋਰ ਫੈਲਾਅ ਸਰਗਰਮ ਹੈ।"
+        }
+    };
+
+    const localizedDiseaseData = {
+        "Potato Early Blight": {
+            en: { disease: "Potato Early Blight", crop: "Potato", symptoms: "Concentric ring lesions on older leaves, yellowing and premature leaf drop.", organic: "Apply targeted Neem oil extract (5ml/liter) and maintain proper crop rotation.", chemical: "Spray Mancozeb 75% WP @ 2.5g per liter of water." },
+            hi: { disease: "आलू का अतीव झुलसा (Early Blight)", crop: "आलू", symptoms: "पुरानी पत्तियों पर गहरे भूरे से काले संकेंद्रित छल्ले, पत्तियां पीली पड़कर गिरना।", organic: "लक्षित नीम के तेल के अर्क (5 मिली/लीटर) का छिड़काव करें।", chemical: "2.5 ग्राम मैंकोजेब 75% डब्ल्यूपी प्रति लीटर पानी में मिलाकर छिड़काव करें।" },
+            bn: { disease: "আলুর প্রথমিক ব্লাইট", crop: "আলু", symptoms: "পুরানো পাতায় ঘনীভূত রিং ক্ষত, হলুদ হয়ে যাওয়া এবং পাতা ঝরে যাওয়া।", organic: "নিমের তেল এক্সট্রাক্ট (৫ মিলি/লিটার) প্রয়োগ করুন।", chemical: "প্রতি লিটার পানিতে ২.৫ গ্রাম ম্যানকোজেব ৭১% ডব্লিউপি স্প্রে করুন।" },
+            te: { disease: "బంగాళదుంప ఎర్లీ బ్లైట్", crop: "బంగాళదుంప", symptoms: "పాత ఆకులపై వృత్తాకార మచ్చలు మరియు ఆకులు రాలిపోవడం.", organic: "వేప నూనె సారం (5ml/liter) ఉపయోగించండి.", chemical: "లీటర్ నీటికి 2.5 గ్రాముల మాంకోజెబ్ కలిపి పిచికారీ చేయండి." },
+            mr: { disease: "बटाटा अर्ली ब्लाईट", crop: "बटाटा", symptoms: "जुन्या पानांवर वर्तुळाकार डाग, पाने पिवळी पडून गळणे.", organic: "कडूलिंबाच्या तेलाचा अर्क (5 मिली/लीटर) वापरा.", chemical: "प्रति लिटर पाण्यात २.५ ग्रॅम मँकोझेब मिसळून फवारा." },
+            pa: { disease: "ਆਲੂ ਦਾ ਅਰਲੀ ਬਲਾਈਟ", crop: "ਆਲੂ", symptoms: "ਪੁਰਾਣੇ ਪੱਤਿਆਂ 'ਤੇ ਗੋਲ ਦਾਗ ਅਤੇ ਪੱਤਿਆਂ ਦਾ ਸਮੇਂ ਤੋਂ ਪਹਿਲਾਂ ਝੜਨਾ।", organic: "ਨੀਮ ਦੇ ਤੇਲ ਦੇ ਘੋਲ (5 ਮਿਲੀ/ਲੀਟਰ) ਦੀ ਵਰਤੋਂ ਕਰੋ।", chemical: "2.5 ਗ੍ਰਾਮ ਮੈਨਕੋਜ਼ੇਬ ਪ੍ਰਤੀ ਲੀਟਰ ਪਾਣੀ ਵਿੱਚ ਮਿਲਾ ਕੇ ਛਿੜਕਾਅ ਕਰੋ।" }
+        },
+        "Tomato Early Blight": {
+            en: { disease: "Tomato Early Blight", crop: "Tomato", symptoms: "Concentric ring lesions on older leaves, stem cankers, fruit rot near stem end.", organic: "Crop rotation, resistant varieties, and biological neem formulations.", chemical: "Spray Mancozeb or Chlorothalonil @ 2.5g per liter." },
+            hi: { disease: "टमाटर का झुलसा रोग (Early Blight)", crop: "टमाटर", symptoms: "पुरानी पत्तियों पर छल्ले जैसे दाग, तने पर घाव और फल का सड़ना।", organic: "फसल चक्र, प्रतिरोधी किस्में और जैविक नीम फॉर्मूलेशन।", chemical: "मैंकोजेब या क्लोरोथालोनिल 2.5 ग्राम प्रति लीटर पानी में छिड़कें।" },
+            bn: { disease: "টমেটোর আর্লি ব্লাইট", crop: "টমেটো", symptoms: "পুরানো পাতায় রিং আকৃতির ক্ষত, কান্ডে ক্ষতের সৃষ্টি ও ফল পচে যাওয়া।", organic: "শস্যপর্যায় মেনে চলুন এবং জৈব নিমের ব্যবহার করুন।", chemical: "প্রতি লিটার পানিতে ২.৫ গ্রাম ম্যানকোজেব বা ক্লোরোথালনিল স্প্রে করুন।" },
+            te: { disease: "టమాట ఎర్లీ బ్లైట్", crop: "టమాట", symptoms: "పాత ఆకులపై వృత్తాకారపు మచ్చలు, కాండం కుళ్ళడం మరియు కాయలు కుళ్ళిపోవడం.", organic: "పంట మార్పిడి మరియు జీవ నియంత్రణ.", chemical: "లీటర్ నీటికి 2.5 గ్రాముల మాంకోజెబ్ స్ప్రే చేయండి." },
+            mr: { disease: "टोमॅटो अर्ली ब्लाईट", crop: "टोमॅटो", symptoms: "जुन्या पानांवर वर्तुळाकार डाग, खोडावर जखमा आणि फळांची सड.", organic: "पीक फेरपालट आणि जैविक उपाय.", chemical: "प्रति लिटर पाण्यात २.५ ग्रॅम मँकोझेब किंवा क्लोरोथालोनिल फवारा." },
+            pa: { disease: "ਟਮਾਟਰ ਦਾ ਅਰਲੀ ਬਲਾਈਟ", crop: "ਟਮਾਟਰ", symptoms: "ਪੁਰਾਣੇ ਪੱਤਿਆਂ ਉੱਤੇ ਗੋਲ ਦਾਗ, ਤਣੇ 'ਤੇ ਜ਼ਖ਼ਮ ਅਤੇ ਫਲ ਦਾ ਗਲਣਾ।", organic: "ਫਸਲ ਬਦਲੀ ਅਤੇ ਜੈਵਿਕ ਨੀਮ ਦੇ ਉਤਪਾਦਾਂ ਦੀ ਵਰਤੋਂ।", chemical: "ਪ੍ਰਤੀ ਲੀਟਰ ਪਾਣੀ ਵਿੱਚ 2.5 ਗ੍ਰਾਮ ਮੈਨਕੋਜ਼ੇਬ ਜਾਂ ਕਲੋਰੋਥਾਲੋਨਿਲ ਦਾ ਛਿੜਕਾਅ ਕਰੋ।" }
+        },
+        "Wheat Rust": {
+            en: { disease: "Wheat Stem Rust", crop: "Wheat", symptoms: "Reddish-brown pustules on stems and leaves rupturing epidermis.", organic: "Plant rust-resistant cultivars and remove alternate weed hosts.", chemical: "Spray Propiconazole 25% EC @ 1ml per liter of water." },
+            hi: { disease: "गेहूं का काला रतुआ (Stem Rust)", crop: "गेहूं", symptoms: "तनों और पत्तियों पर लाल-भूरे रंग के फफोले जो फट जाते हैं।", organic: "रतुआ प्रतिरोधी किस्मों को लगाएं और खरपतवार हटाएं।", chemical: "प्रोपिकोनाजोल 25% ईसी @ 1 मिली प्रति लीटर पानी का छिड़काव करें।" },
+            bn: { disease: "গম স্টেম রাস্ট", crop: "গম", symptoms: "ডাঁটা এবং পাতায় লালচে-বাদামী ফোসকা।", organic: "রোগ প্রতিরোধী জাত রোপণ করুন এবং আগাছা পরিষ্কার করুন।", chemical: "প্রতি লিটার পানিতে ১ মিলি প্রোপিকোনাজল স্প্রে করুন।" },
+            te: { disease: "గోధుమ స్టెమ్ రస్ట్", crop: "గోధుమ", symptoms: "కాండం మరియు ఆకులపై ఎరుపు-గోధుమ రంగు బొబ్బలు.", organic: "నిరోధక రకాలను నాటండి.", chemical: "లీటర్ నీటికి 1ml ప్రొపికొనజోల్ స్ప్రే చేయండి." },
+            mr: { disease: "गहू तांबेरा रोग", crop: "गहू", symptoms: "खोड आणि पानांवर तांबूस-तपकिरी फोड.", organic: "प्रतिकारक्षम वाण लावा.", chemical: "प्रति लिटर पाण्यात १ मिली प्रोपिकोनाजोल फवारा." },
+            pa: { disease: "ਕਣਕ ਦਾ ਸਟੈਮ ਰਸਟ", crop: "ਕਣਕ", symptoms: "ਤਣੇ ਅਤੇ ਪੱਤਿਆਂ ਉੱਤੇ ਲਾਲ-ਭੂਰੇ ਫੋੜੇ।", organic: "ਰੋਧਕ ਕਿਸਮਾਂ ਦੀ ਬਿਜਾਈ ਕਰੋ।", chemical: "ਪ੍ਰਤੀ ਲੀਟਰ ਪਾਣੀ ਵਿੱਚ 1 ਮਿਲੀ ਪ੍ਰੋਪੀਕੋਨਾਜ਼ੋਲ ਦਾ ਛਿੜਕਾਅ ਕਰੋ।" }
+        },
+        "Rice Blast": {
+            en: { disease: "Rice Blast", crop: "Rice", symptoms: "Spindle-shaped lesions with grey centers and brown margins on leaves.", organic: "Avoid excessive nitrogen fertilization and use resistant seed varieties.", chemical: "Spray Tricyclazole 75% WP @ 0.6g per liter of water." },
+            hi: { disease: "धान का ब्लास्ट रोग", crop: "धान", symptoms: "पत्तियों पर भूरे किनारों और स्लेटी केंद्रों वाले धुरी-आकार के घाव।", organic: "अत्यधिक नाइट्रोजन खाद से बचें और प्रतिरोधी बीज चुनें।", chemical: "Tricyclazole 75% WP @ 0.6 ग्राम प्रति लीटर पानी में छिड़कें।" },
+            bn: { disease: "ধানের ব্লাস্ট রোগ", crop: "ধান", symptoms: "পাতায় ধূসর কেন্দ্র এবং বাদামী সীমানা সহ টাকু আকৃতির ক্ষত।", organic: "অতিরিক্ত নাইট্রোজেন সার এড়িয়ে চলুন এবং প্রতিরোধী বীজ ব্যবহার করুন।", chemical: "প্রতি লিটার পানিতে ০.৬ গ্রাম ট্রাইসাইক্লাজোল স্প্রে করুন।" },
+            te: { disease: "వరి బ్లాస్ట్ తెగులు", crop: "వరి", symptoms: "ఆకులపై బూడిద రంగు కేంద్రాలు మరియు గోధుమ రంగు అంచులతో కూడిన మచ్చలు.", organic: "ఎక్కువ నత్రజని ఎరువులను నివారించండి.", chemical: "లీటర్ నీటికి 0.6 గ్రాముల ట్రిసైక్లాజోల్ స్ప్రే చేయండి." },
+            mr: { disease: "भाताचा ब्लास्ट रोग", crop: "भात", symptoms: "पानांवर राखाडी केंद्र आणि तपकिरी कडा असलेले लांबट डाग.", organic: "जादा नायट्रोजन खत टाळा.", chemical: "प्रति लिटर पाण्यात ०.६ ग्रॅम ट्रायसायक्लाझोल फवारा." },
+            pa: { disease: "ਝੋਨੇ ਦਾ ਬਲਾਸਟ ਰੋਗ", crop: "ਝੋਨਾ", symptoms: "ਪੱਤਿਆਂ 'ਤੇ ਸਲੇਟੀ ਕੇਂਦਰ ਅਤੇ ਭੂਰੇ ਹਾਸ਼ੀਏ ਵਾਲੇ ਦਾਗ।", organic: "ਵਧੇਰੇ ਨਾਈਟ੍ਰੋਜਨ ਖਾਦ ਤੋਂ ਪਰਹੇਜ਼ ਕਰੋ।", chemical: "ਪ੍ਰਤੀ ਲੀਟਰ ਪਾਣੀ ਵਿੱਚ 0.6 ਗ੍ਰਾਮ ਟ੍ਰਾਈਸਾਈਕਲਾਜ਼ੋਲ ਦਾ ਛਿੜਕਾਅ ਕਰੋ।" }
+        },
+        "Sugarcane Red Rot": {
+            en: { disease: "Sugarcane Red Rot", crop: "Sugarcane", symptoms: "Reddening of internal stalk tissues with white transverse patches and sour odor.", organic: "Select disease-free setts from certified nurseries and treat with hot water.", chemical: "Dip setts in Carbendazim 50% WP @ 1g per liter solution." },
+            hi: { disease: "गन्ने का लाल सड़न रोग (Red Rot)", crop: "गन्ना", symptoms: "आंतरिक तने के ऊतकों का लाल होना और खट्टा अल्कोहल जैसा महक आना।", organic: "प्रमाणित नर्सरी से रोग मुक्त सेट चुनें और गर्म पानी से उपचार करें।", chemical: "कार्बेंडाजिम 50% डब्ल्यूपी @ 1 ग्राम प्रति लीटर पानी में सेट डुबोएं।" },
+            bn: { disease: "আখের লাল পচা রোগ", crop: "আখ", symptoms: "অভ্যন্তরীণ কান্ডের টিস্যু লাল হয়ে যাওয়া এবং টক অ্যালকোহলিক গন্ধ।", organic: "রোগমুক্ত বীজ ব্যবহার করুন এবং গরম জলে শোধন করুন।", chemical: "প্রতি লিটার জলে ১ গ্রাম কার্বেন্ডাজিম মিশিয়ে বীজ শোধন করুন।" },
+            te: { disease: "చెరకు ఎర్ర కుళ్ళి తెగులు", crop: "చెరకు", symptoms: "కాండం లోపలి భాగం ఎర్రగా మారి పుల్లని వాసన రావడం.", organic: "రోగ నిర్మూలన చేసిన విత్తన కణుపులను ఉపయోగించండి.", chemical: "లీటర్ నీటికి 1 గ్రాము కార్బెంజిమ్ కలిపి నానబెట్టండి." },
+            mr: { disease: "उसाचा तांबडा सड रोग", crop: "ऊस", symptoms: "उसाचा आतील भाग लाल होणे आणि आंबट वास सुटणे.", organic: "रोगमुक्त उसाची रोपे वापरा.", chemical: "प्रति लिटर पाण्यात १ ग्रॅम कार्बेन्डाझिम मिसळून प्रक्रिया करा." },
+            pa: { disease: "ਗੰਨੇ ਦਾ ਲਾਲ ਸੜਨ ਰੋਗ", crop: "ਗੰਨਾ", symptoms: "ਅੰਦਰੂਨੀ ਤਣੇ ਦਾ ਲਾਲ ਹੋਣਾ ਅਤੇ ਖੱਟਾ ਅਲਕੋਹਲ ਵਰਗਾ ਗੰਧ ਆਉਣਾ।", organic: "ਰੋਗ-ਮੁਕਤ ਬੀਜ ਵਰਤੋ ਅਤੇ ਗਰਮ ਪਾਣੀ ਨਾਲ ਸੋਧ ਕਰੋ।", chemical: "ਪ੍ਰਤੀ ਲੀਟਰ ਪਾਣੀ ਵਿੱਚ 1 ਗ੍ਰਾਮ ਕਾਰਬੈਂਡਾਜ਼ਿਮ ਘੋਲ ਕੇ ਬੀਜ ਸੋਧੋ।" }
+        }
+    };
+
+    function getLocalizedFallback(rawName, cropName, lang) {
+        let matchedKey = Object.keys(localizedDiseaseData).find(key => rawName.includes(key) || key.includes(rawName));
+        if (matchedKey && localizedDiseaseData[matchedKey][lang]) {
+            return localizedDiseaseData[matchedKey][lang];
+        }
+        if (matchedKey && localizedDiseaseData[matchedKey]['en']) {
+            return localizedDiseaseData[matchedKey]['en'];
+        }
+        return {
+            disease: rawName,
+            crop: cropName,
+            symptoms: "Observed chlorosis and tissue necrosis on leaf sample.",
+            organic: "Apply certified organic compost and neem formulation.",
+            chemical: "Consult local extension officer for recommended fungicide."
+        };
+    }
+
+    let lastKnownLat = 22.5726;
+    let lastKnownLon = 88.3639;
+
+    function updateGpsText() {
+        const lang = document.getElementById('langSelect').value;
+        const t = translations[lang] || translations.en;
+        
+        if (isGpsActive) {
+            document.getElementById('gpsStatus').innerText = t.gpsLive;
+            document.getElementById('coordsValue').innerText = `${lastKnownLat.toFixed(4)}° N, ${lastKnownLon.toFixed(4)}° E (${t.locCurrent})`;
+        } else {
+            document.getElementById('gpsStatus').innerText = t.gpsFallback;
+            document.getElementById('coordsValue').innerText = `${lastKnownLat.toFixed(4)}° N, ${lastKnownLon.toFixed(4)}° E (${t.locDefault})`;
+        }
+        document.getElementById('climateValue').innerText = t.climateMsg;
+    }
+
+    function renderMapMarkers() {
+        const lang = document.getElementById('langSelect').value;
+        const t = translations[lang] || translations.en;
+        outbreakLayerGroup.clearLayers();
+        if (userMarker) {
+            userMarker.bindPopup(t.userLocationPopup);
+            outbreakLayerGroup.addLayer(userMarker);
+        }
+        const nearbyOutbreaks = [
+            { lat: lastKnownLat + 0.03, lon: lastKnownLon + 0.02, name: t.cluster1, issue: t.threat1 },
+            { lat: lastKnownLat - 0.025, lon: lastKnownLon + 0.04, name: t.cluster2, issue: t.threat2 },
+            { lat: lastKnownLat + 0.015, lon: lastKnownLon - 0.035, name: t.cluster3, issue: t.threat3 }
+        ];
+        nearbyOutbreaks.forEach(cluster => {
+            const marker = L.circleMarker([cluster.lat, cluster.lon], {
+                color: '#e76f51', radius: 8, fillColor: '#f4a261', fillOpacity: 0.8
+            }).bindPopup(`<b>${cluster.name}</b><br/>${cluster.issue}`);
+            outbreakLayerGroup.addLayer(marker);
+        });
+        outbreakLayerGroup.addTo(map);
+    }
+
+    function changeLanguage() {
+        const lang = document.getElementById('langSelect').value;
+        const t = translations[lang] || translations.en;
+
+        document.getElementById('heroTitle').innerText = t.heroTitle;
+        document.getElementById('heroSub').innerText = t.heroSub;
+        document.getElementById('cardTitleGps').innerText = t.cardTitleGps;
+        document.getElementById('cardTitleScanner').innerText = t.cardTitleScanner;
+        document.getElementById('uploadInstruction').innerText = t.uploadInstruction;
+        document.getElementById('scanBtn').innerText = t.scanBtn;
+        document.getElementById('cardTitleDiagnosis').innerText = t.cardTitleDiagnosis;
+        document.getElementById('audioBtn').innerText = t.audioBtn;
+        document.getElementById('cardTitleTreatment').innerText = t.cardTitleTreatment;
+        document.getElementById('cardTitleMap').innerText = t.cardTitleMap;
+        document.getElementById('lblCoords').innerText = t.lblCoords;
+        document.getElementById('lblMicroclimate').innerText = t.lblMicroclimate;
+        document.getElementById('lblDetectedDisease').innerText = t.lblDetectedDisease;
+        document.getElementById('lblInfectionSeverity').innerText = t.lblInfectionSeverity;
+        document.getElementById('lblSymptoms').innerText = t.lblSymptoms;
+        document.getElementById('lblOrganic').innerText = t.lblOrganic;
+        document.getElementById('lblChemical').innerText = t.lblChemical;
+
+        updateGpsText();
+
+        if (!currentAnalysis) {
+            document.getElementById('diseaseOutput').innerText = t.awaiting;
+        } else {
+            updateAnalysisDisplay(currentAnalysis);
+        }
+        renderMapMarkers();
+    }
+
+    function updateAnalysisDisplay(data) {
+        const lang = document.getElementById('langSelect').value;
+        const localized = getLocalizedFallback(data.raw_disease || data.disease, data.crop, lang);
+
+        document.getElementById('diseaseOutput').innerText = `${localized.disease} (${localized.crop})`;
+        document.getElementById('severityOutput').innerText = data.severity + "% infection detected";
+        document.getElementById('symptomsOutput').innerText = localized.symptoms;
+        document.getElementById('organicOutput').innerText = localized.organic;
+        document.getElementById('chemicalOutput').innerText = localized.chemical;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        map = L.map('map').setView([22.5726, 88.3639], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        outbreakLayerGroup.addTo(map);
+
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(position => {
+                isGpsActive = true;
+                lastKnownLat = position.coords.latitude;
+                lastKnownLon = position.coords.longitude;
+                updateGpsText();
+                map.setView([lastKnownLat, lastKnownLon], 13);
+                if (userMarker) map.removeLayer(userMarker);
+                userMarker = L.marker([lastKnownLat, lastKnownLon]);
+                renderMapMarkers();
+                userMarker.openPopup();
+            }, error => {
+                isGpsActive = false;
+                updateGpsText();
+                renderMapMarkers();
+            }, { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 });
+        } else {
+            isGpsActive = false;
+            updateGpsText();
+            renderMapMarkers();
+        }
+        changeLanguage();
+    });
+
+    function previewFile(event) {
+        selectedFile = event.target.files[0];
+        if (selectedFile) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('imagePreview');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                document.getElementById('scanBtn').disabled = false;
+            }
+            reader.readAsDataURL(selectedFile);
+        }
+    }
+
+    async function runAnalysis() {
+        if (!selectedFile) return;
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const loading = document.getElementById('loadingText');
+        loading.style.display = 'block';
+        document.getElementById('scanBtn').disabled = true;
+
+        try {
+            const response = await fetch('/analyze', { method: 'POST', body: formData });
+            if (!response.ok) throw new Error('Analysis pipeline failed.');
+            const data = await response.json();
+            currentAnalysis = data;
+            updateAnalysisDisplay(data);
+        } catch (err) {
+            alert('Error running AI diagnostic engine: ' + err.message);
+        } finally {
+            loading.style.display = 'none';
+            document.getElementById('scanBtn').disabled = false;
+        }
+    }
+
+    function readAloud() {
+        if (!currentAnalysis) {
+            alert('Please run a diagnostic scan first.');
+            return;
+        }
+        if (!('speechSynthesis' in window)) {
+            alert('Speech synthesis not supported in this browser.');
+            return;
+        }
+        window.speechSynthesis.cancel();
+        
+        const uiLang = document.getElementById('langSelect').value;
+        const selectedAudioLang = document.getElementById('audioLangSelect').value;
+        
+        const diseaseText = document.getElementById('diseaseOutput').innerText;
+        const symptomText = document.getElementById('symptomsOutput').innerText;
+        const orgText = document.getElementById('organicOutput').innerText;
+        const chemText = document.getElementById('chemicalOutput').innerText;
+        
+        const textToSpeak = `${diseaseText}. ${symptomText}. ${orgText}. ${chemText}`;
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        
+        const localeMap = {
+            hi: 'hi-IN',
+            bn: 'bn-IN',
+            te: 'te-IN',
+            mr: 'mr-IN',
+            pa: 'pa-IN',
+            en: 'en-US'
+        };
+        
+        let targetLang = (selectedAudioLang === 'auto') ? (localeMap[uiLang] || 'en-US') : selectedAudioLang;
+        utterance.lang = targetLang;
+        
+        // Advanced Voice Matching: Force the browser to use a native voice if available
+        if (synthVoices.length === 0) {
+            synthVoices = window.speechSynthesis.getVoices();
+        }
+        const matchedVoice = synthVoices.find(v => v.lang.replace('_', '-').startsWith(targetLang) || v.lang.startsWith(targetLang.split('-')[0]));
+        if (matchedVoice) {
+            utterance.voice = matchedVoice;
+        }
+        
+        window.speechSynthesis.speak(utterance);
+    }
+</script>
+
+</body>
+</html>
