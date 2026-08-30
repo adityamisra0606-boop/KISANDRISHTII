@@ -50,9 +50,15 @@
         .hero h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 8px; color: #e9f5ed; }
         .hero p { color: #b7e4c7; font-size: 1rem; }
         
+        .weather-banner {
+            background: #ffd166; color: #081c15; padding: 15px 20px; border-radius: 8px;
+            margin: 0 auto 20px auto; max-width: 1320px; width: 90%; font-weight: 600;
+            text-align: center; border: 2px solid #e76f51; box-shadow: 0 4px 15px rgba(231,111,81,0.3);
+        }
+
         .dashboard-container {
             display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 24px; padding: 30px 40px 50px 40px; max-width: 1400px; margin: 0 auto; width: 100%;
+            gap: 24px; padding: 10px 40px 50px 40px; max-width: 1400px; margin: 0 auto; width: 100%;
         }
         .card {
             background: rgba(27, 67, 50, 0.75); backdrop-filter: blur(12px);
@@ -79,7 +85,7 @@
         }
         .btn:hover:not(:disabled) { background: #74c69d; transform: translateY(-1px); }
         .btn:disabled { background: #495057; color: #adb5bd; cursor: not-allowed; }
-        .audio-controls { display: flex; gap: 8px; margin-bottom: 15px; }
+        .audio-controls { display: flex; gap: 8px; margin-bottom: 10px; }
         .btn-audio {
             background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);
             padding: 8px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; flex: 1;
@@ -116,6 +122,8 @@
         <p id="heroSub">Multilingual AI-driven field intelligence safeguarding smallholder farming yields.</p>
     </div>
 
+    <div id="weatherBanner" class="weather-banner" style="display: none;"></div>
+
     <div class="dashboard-container">
         
         <div class="card">
@@ -129,12 +137,22 @@
             </div>
             <div class="metric-box">
                 <div class="metric-label" id="lblMicroclimate">Local Microclimate Risk</div>
-                <div class="metric-value" id="climateValue">High humidity detected (87%). Spore propagation active.</div>
+                <div class="metric-value" id="climateValue">Analyzing live weather data...</div>
             </div>
         </div>
 
         <div class="card">
             <div class="card-title" id="cardTitleScanner">🔬 AI Leaf Scanner</div>
+            
+            <!-- NEW CROP SELECTOR -->
+            <select id="cropSelect" class="lang-dropdown" style="width: 100%; margin-bottom: 15px; border-color: var(--accent);">
+                <option value="potato">🥔 Select Crop: Potato</option>
+                <option value="tomato">🍅 Select Crop: Tomato</option>
+                <option value="wheat">🌾 Select Crop: Wheat</option>
+                <option value="rice">🍚 Select Crop: Rice</option>
+                <option value="sugarcane">🎋 Select Crop: Sugarcane</option>
+            </select>
+
             <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
                 <span class="upload-label" id="uploadInstruction">📁 Click or Drop Affected Leaf Image Here</span>
                 <input type="file" id="fileInput" accept="image/*" onchange="previewFile(event)">
@@ -150,14 +168,19 @@
                 <button class="btn-audio" onclick="readAloud()" id="audioBtn">🔊 Read Aloud</button>
                 <select id="audioLangSelect" class="lang-dropdown" style="padding: 4px 8px; font-size: 0.8rem;">
                     <option value="auto">Match UI Language</option>
-                    <option value="en-US">English (US)</option>
-                    <option value="hi-IN">हिंदी (Hindi)</option>
-                    <option value="bn-IN">বাংলা (Bengali)</option>
-                    <option value="te-IN">తెలుగు (Telugu)</option>
-                    <option value="mr-IN">मराठी (Marathi)</option>
-                    <option value="pa-IN">ਪੰਜਾਬੀ (Punjabi)</option>
+                    <option value="en">English</option>
+                    <option value="hi">हिंदी (Hindi)</option>
+                    <option value="bn">বাংলা (Bengali)</option>
+                    <option value="te">తెలుగు (Telugu)</option>
+                    <option value="mr">मराठी (Marathi)</option>
+                    <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
                 </select>
             </div>
+            
+            <button class="btn-audio" onclick="broadcastAlert()" id="broadcastBtn" style="background: rgba(231, 111, 81, 0.2); border-color: rgba(231, 111, 81, 0.5); color: #f4a261; margin-bottom: 15px; width: 100%;">
+                📲 Share Warning to Village Group
+            </button>
+
             <div class="metric-box">
                 <div class="metric-label" id="lblDetectedDisease">Identified Condition</div>
                 <div class="metric-value" id="diseaseOutput" style="color: #ffadad; font-weight:600;">Awaiting scan input...</div>
@@ -196,15 +219,10 @@
     let currentAnalysis = null;
     let map, userMarker;
     let outbreakLayerGroup = L.layerGroup();
-    let isGpsActive = false; // Tracks if GPS is live or fallback
+    let isGpsActive = false;
+    let currentHumidity = 0;
+    let currentTemp = 0;
 
-    // Ensure voices are loaded for the TTS engine
-    let synthVoices = [];
-    window.speechSynthesis.onvoiceschanged = () => {
-        synthVoices = window.speechSynthesis.getVoices();
-    };
-
-    // Dictionary with newly added GPS & Climate translations
     const translations = {
         en: {
             heroTitle: "Smart Crop Diagnostics & Geolocation Defense", heroSub: "Multilingual AI-driven field intelligence safeguarding smallholder farming yields.",
@@ -213,10 +231,12 @@
             cardTitleMap: "🗺️ Regional Farm Outbreak & Threat Cluster Map", lblCoords: "Live Coordinates", lblMicroclimate: "Local Microclimate Risk",
             lblDetectedDisease: "Identified Condition", lblInfectionSeverity: "Infection Severity Index", lblSymptoms: "Observed Symptom Pattern",
             lblOrganic: "🌱 Biological / Organic Action", lblChemical: "🧪 Chemical Treatment Solution", awaiting: "Awaiting scan input...",
-            userLocationPopup: "<b>Your Farm Location</b><br/>Active Monitoring Node", cluster1: "Cluster Farm #1", cluster2: "Cluster Farm #2", cluster3: "Cluster Farm #3",
-            threat1: "Early Blight Spore Warning", threat2: "Wheat Yellow Rust Alert", threat3: "High Humidity Fungal Alert",
+            userLocationPopup: "<b>Your Farm Location</b><br/>Active Monitoring Node", cluster1: "Cluster Farm #1", cluster2: "Cluster Farm #2",
+            threat1: "Early Blight Spore Warning", threat2: "Wheat Yellow Rust Alert",
             gpsLive: "GPS Active (Live Fix)", gpsFallback: "GPS Fallback (Cluster Mode)", locCurrent: "Current Location", locDefault: "Default Zone",
-            climateMsg: "High humidity detected (87%). Spore propagation active."
+            broadcastBtn: "📲 Share Warning to Village Group", alertMsg1: "🚨 *KisanDrishti Alert:*\n\n", alertMsg2: " has just been detected in our area. \n\nPlease check your crops today and apply preventative measures!",
+            climateMsgLive: "Temp: {t}°C, Humidity: {h}%. High fungal propagation risk.", climateSafe: "Temp: {t}°C, Humidity: {h}%. Microclimate is stable.",
+            riskBanner: "⚠️ Warning: High humidity ({h}%) detected in your block. 75% risk of Potato Blight over the next 4 days. Apply preventive organic bio-spray now."
         },
         hi: {
             heroTitle: "स्मार्ट फसल निदान और जीपीएस सुरक्षा", heroSub: "छोटे किसानों की उपज की रक्षा करने वाली बहुभाषी एआई-संचालित कृषि बुद्धिमत्ता।",
@@ -225,10 +245,12 @@
             cardTitleMap: "🗺️ क्षेत्रीय कृषि प्रकोप और खतरा क्लस्टर मानचित्र", lblCoords: "लाइव निर्देशांक", lblMicroclimate: "स्थानीय सूक्ष्म जलवायु जोखिम",
             lblDetectedDisease: "पहचाने गए रोग की स्थिति", lblInfectionSeverity: "संक्रमण गंभीरता सूचकांक", lblSymptoms: "देखे गए लक्षण पैटर्न",
             lblOrganic: "🌱 जैविक उपाय", lblChemical: "🧪 रासायनिक समाधान", awaiting: "स्कैन इनपुट की प्रतीक्षा है...",
-            userLocationPopup: "<b>आपका खेत स्थान</b><br/>सक्रिय निगरानी नोड", cluster1: "क्लस्टर फार्म #1", cluster2: "क्लस्टर फार्म #2", cluster3: "क्लस्टर फार्म #3",
-            threat1: "अतीव झुलसा बीजाणु चेतावनी", threat2: "गेहूं पीला रतुआ चेतावनी", threat3: "उच्च आर्द्रता कवक चेतावनी",
+            userLocationPopup: "<b>आपका खेत स्थान</b><br/>सक्रिय निगरानी नोड", cluster1: "क्लस्टर फार्म #1", cluster2: "क्लस्टर फार्म #2",
+            threat1: "अतीव झुलसा बीजाणु चेतावनी", threat2: "गेहूं पीला रतुआ चेतावनी",
             gpsLive: "जीपीएस सक्रिय (लाइव फिक्स)", gpsFallback: "जीपीएस फॉलबैक (क्लस्टर मोड)", locCurrent: "वर्तमान स्थान", locDefault: "डिफ़ॉल्ट ज़ोन",
-            climateMsg: "उच्च आर्द्रता पाई गई (87%)। बीजाणु प्रसार सक्रिय है।"
+            broadcastBtn: "📲 गांव के समूह में चेतावनी साझा करें", alertMsg1: "🚨 *किसान-दृष्टि चेतावनी:*\n\nहमारे क्षेत्र में ", alertMsg2: " का पता चला है। \n\nकृपया आज ही अपनी फसलों की जांच करें और निवारक उपाय अपनाएं!",
+            climateMsgLive: "तापमान: {t}°C, आर्द्रता: {h}%। कवक प्रसार का उच्च जोखिम।", climateSafe: "तापमान: {t}°C, आर्द्रता: {h}%। सूक्ष्म जलवायु स्थिर है।",
+            riskBanner: "⚠️ चेतावनी: आपके ब्लॉक में उच्च आर्द्रता ({h}%) पाई गई है। अगले 4 दिनों में आलू के झुलसा रोग (Potato Blight) का 75% जोखिम है। अभी निवारक जैविक स्प्रे लागू करें।"
         },
         bn: {
             heroTitle: "স্মার্ট শস্য রোগ নির্ণয় এবং জিপিএস সুরক্ষা", heroSub: "ক্ষুদ্র কৃষকদের ফলন রক্ষাকারী বহুমুখী এআই-চালিত কৃষি বুদ্ধিমত্তা।",
@@ -237,10 +259,12 @@
             cardTitleMap: "🗺️ আঞ্চলিক খামার প্রাদুর্ভাব এবং হুমকি ক্লাস্টার মানচিত্র", lblCoords: "লাইভ স্থানাঙ্ক", lblMicroclimate: "স্থানীয় মাইক্রোক্লিমেট ঝুঁকি",
             lblDetectedDisease: "চিহ্নিত রোগের অবস্থা", lblInfectionSeverity: "সংক্রমণের তীব্রতা সূচক", lblSymptoms: "পর্যবেক্ষণ করা লক্ষণ প্যাটার্ন",
             lblOrganic: "🌱 জৈবিক প্রতিকার", lblChemical: "🧪 রাসায়নিক সমাধান", awaiting: "স্ক্যান ইনপুটের জন্য অপেক্ষা করা হচ্ছে...",
-            userLocationPopup: "<b>আপনার খামারের অবস্থান</b><br/>সক্রিয় পর্যবেক্ষণ নোড", cluster1: "ক্লাস্টার ফার্ম #১", cluster2: "ক্লাস্টার ফার্ম #২", cluster3: "ক্লাস্টার ফার্ম #৩",
-            threat1: "প্রাথমিক ব্লাইট স্পোর সতর্কতা", threat2: "গম হলুদ মরিচা সতর্কতা", threat3: "উচ্চ আর্দ্রতা ছত্রাক সতর্কতা",
+            userLocationPopup: "<b>আপনার খামারের অবস্থান</b><br/>সক্রিয় পর্যবেক্ষণ নোড", cluster1: "ক্লাস্টার ফার্ম #১", cluster2: "ক্লাস্টার ফার্ম #২",
+            threat1: "প্রাথমিক ব্লাইট স্পোর সতর্কতা", threat2: "গম হলুদ মরিচা সতর্কতা",
             gpsLive: "জিপিএস সক্রিয় (লাইভ ফিক্স)", gpsFallback: "জিপিএস ফলব্যাক (ক্লাস্টার মোড)", locCurrent: "বর্তমান অবস্থান", locDefault: "ডিফল্ট জোন",
-            climateMsg: "উচ্চ আর্দ্রতা শনাক্ত হয়েছে (৮৭%)। স্পোর বিস্তার সক্রিয়।"
+            broadcastBtn: "📲 গ্রামের গ্রুপে সতর্কতা শেয়ার করুন", alertMsg1: "🚨 *কিষাণ-দৃষ্টি সতর্কতা:*\n\nআমাদের এলাকায় ", alertMsg2: " শনাক্ত করা হয়েছে। \n\nদয়া করে আজই আপনার ফসল পরীক্ষা করুন এবং প্রতিরোধমূলক ব্যবস্থা গ্রহণ করুন!",
+            climateMsgLive: "তাপমাত্রা: {t}°C, আর্দ্রতা: {h}%। ছত্রাক বিস্তারের উচ্চ ঝুঁকি।", climateSafe: "তাপমাত্রা: {t}°C, আর্দ্রতা: {h}%। মাইক্রোক্লাইমেট স্থিতিশীল।",
+            riskBanner: "⚠️ সতর্কতা: আপনার ব্লকে উচ্চ আর্দ্রতা ({h}%) শনাক্ত হয়েছে। আগামী ৪ দিনে আলুর ব্লাইট (Potato Blight) রোগের ৭৫% ঝুঁকি রয়েছে। প্রতিরোধমূলক জৈব স্প্রে প্রয়োগ করুন।"
         },
         te: {
             heroTitle: "స్మార్ట్ పంట నిర్ధారణ & జిపిఎస్ రక్షణ", heroSub: "చిన్నకారు రైతుల పంట దిగుబడులను రక్షించే బహుభాషా ఏఐ సాంకేతికత.",
@@ -249,10 +273,12 @@
             cardTitleMap: "🗺️ ప్రాంతీయ పొలాల వ్యాప్తి క్లస్టర్ మ్యాప్", lblCoords: "లైవ్ కోఆర్డినేట్లు", lblMicroclimate: "స్థానిక సూక్ష్మ వాతావరణ ప్రమాదం",
             lblDetectedDisease: "గుర్తించబడిన పరిస్థితి", lblInfectionSeverity: "ఇన్ఫెక్షన్ తీవ్రత సూచిక", lblSymptoms: "గమనించిన లక్షణాలు",
             lblOrganic: "🌱 ఆర్గానిక్ నివారణ", lblChemical: "🧪 రసాయన పరిష్కారం", awaiting: "స్కాన్ కోసం వేచి ఉంది...",
-            userLocationPopup: "<b>మీ పొలం ప్రదేశం</b><br/>యాక్టివ్ మానిటరింగ్ నోడ్", cluster1: "క్లస్టర్ ఫామ్ #1", cluster2: "క్లస్టర్ ఫామ్ #2", cluster3: "క్లస్టర్ ఫామ్ #3",
-            threat1: "ఎర్లీ బ్లైట్ స్పోర్ హెచ్చరిక", threat2: "గోధుమ పసుపు తుప్పు హెచ్చరిక", threat3: "అధిక తేమ ఫంగల్ హెచ్చరిక",
+            userLocationPopup: "<b>మీ పొలం ప్రదేశం</b><br/>యాక్టివ్ మానిటరింగ్ నోడ్", cluster1: "క్లస్టర్ ఫామ్ #1", cluster2: "క్లస్టర్ ఫామ్ #2",
+            threat1: "ఎర్లీ బ్లైట్ స్పోర్ హెచ్చరిక", threat2: "గోధుమ పసుపు తుప్పు హెచ్చరిక",
             gpsLive: "GPS సక్రియం (లైవ్)", gpsFallback: "GPS ఫాల్‌బ్యాక్ (క్లస్టర్ మోడ్)", locCurrent: "ప్రస్తుత స్థానం", locDefault: "డిఫాల్ట్ జోన్",
-            climateMsg: "అధిక తేమ కనుగొనబడింది (87%). బీజాంశ వ్యాప్తి చురుకుగా ఉంది."
+            broadcastBtn: "📲 గ్రామ సమూహానికి హెచ్చరిక పంపండి", alertMsg1: "🚨 *కిసాన్-దృష్టి హెచ్చరిక:*\n\nమా ప్రాంతంలో ", alertMsg2: " కనుగొనబడింది. \n\nదయచేసి ఈరోజే మీ పంటలను తనిఖీ చేయండి మరియు నివారణ చర్యలు తీసుకోండి!",
+            climateMsgLive: "ఉష్ణోగ్రత: {t}°C, తేమ: {h}%. ఫంగల్ వ్యాప్తికి అధిక ప్రమాదం.", climateSafe: "ఉష్ణోగ్రత: {t}°C, తేమ: {h}%. వాతావరణం స్థిరంగా ఉంది.",
+            riskBanner: "⚠️ హెచ్చరిక: మీ బ్లాక్‌లో అధిక తేమ ({h}%) కనుగొనబడింది. రాబోయే 4 రోజుల్లో బంగాళదుంప బ్లైట్ వచ్చే 75% ప్రమాదం ఉంది. ఇప్పుడే నివారణ ఆర్గానిక్ స్ప్రే చేయండి."
         },
         mr: {
             heroTitle: "स्मार्ट पीक निदान आणि जीपीएस संरक्षण", heroSub: "अल्पभूधारक शेतकऱ्यांच्या पिकांचे रक्षण करणारी बहुभाषिक एआय प्रणाली.",
@@ -261,10 +287,12 @@
             cardTitleMap: "🗺️ प्रादेशिक शेत प्रादुर्भाव क्लस्टर नकाशा", lblCoords: "थेट निर्देशक", lblMicroclimate: "स्थानिक सूक्ष्म हवामान धोका",
             lblDetectedDisease: "ओळखलेली स्थिती", lblInfectionSeverity: "संक्रमण तीव्रता निर्देशांक", lblSymptoms: "निरीक्षण केलेले लक्षण पॅटर्न",
             lblOrganic: "🌱 सेंद्रिय उपाय", lblChemical: "🧪 रासायनिक उपाय", awaiting: "स्कॅन इनपुट प्रतीक्षेत...",
-            userLocationPopup: "<b>तुमचे शेत स्थान</b><br/>सक्रिय मॉनिटरींग नोड", cluster1: "क्लस्टर फार्म #1", cluster2: "क्लस्टर फार्म #2", cluster3: "क्लस्टर फार्म #3",
-            threat1: "अर्ली ब्लाईट बिजाणू चेतावणी", threat2: "गहू पिवळा तांबेरा चेतावणी", threat3: "जास्त आर्द्रता बुरशी चेतावणी",
+            userLocationPopup: "<b>तुमचे शेत स्थान</b><br/>सक्रिय मॉनिटरींग नोड", cluster1: "क्लस्टर फार्म #1", cluster2: "क्लस्टर फार्म #2",
+            threat1: "अर्ली ब्लाईट बिजाणू चेतावणी", threat2: "गहू पिवळा तांबेरा चेतावणी",
             gpsLive: "जीपीएस सक्रिय (थेट)", gpsFallback: "जीपीएस फॉलबॅक (क्लस्टर मोड)", locCurrent: "सध्याचे स्थान", locDefault: "डिफॉल्ट झोन",
-            climateMsg: "जास्त आर्द्रता आढळली (87%). बीजाणू प्रसार सक्रिय आहे."
+            broadcastBtn: "📲 गावाच्या ग्रुपवर चेतावणी शेअर करा", alertMsg1: "🚨 *किसान-दृष्टी चेतावणी:*\n\nआपल्या भागात ", alertMsg2: " आढळून आला आहे. \n\nकृपया आजच आपल्या पिकांची तपासणी करा आणि प्रतिबंधात्मक उपाय करा!",
+            climateMsgLive: "तापमान: {t}°C, आर्द्रता: {h}%. बुरशीच्या प्रसाराचा जास्त धोका.", climateSafe: "तापमान: {t}°C, आर्द्रता: {h}%. हवामान स्थिर आहे.",
+            riskBanner: "⚠️ चेतावणी: तुमच्या ब्लॉकमध्ये जास्त आर्द्रता ({h}%) आढळली आहे. पुढील ४ दिवसांत बटाटा ब्लाईट होण्याची ७५% शक्यता आहे. आता प्रतिबंधात्मक सेंद्रिय फवारणी करा."
         },
         pa: {
             heroTitle: "ਸਮਾਰਟ ਫਸਲ ਨਿਦਾਨ ਅਤੇ ਜੀਪੀਐਸ ਸੁਰੱਖਿਆ", heroSub: "ਛੋਟੇ ਕਿਸਾਨਾਂ ਦੀ ਫਸਲ ਦੀ ਪੈਦਾਵਾਰ ਨੂੰ ਬਚਾਉਣ ਲਈ ਬਹੁ-ਭਾਸ਼ਾਈ ਏਆਈ ਪ੍ਰਣਾਲੀ।",
@@ -273,10 +301,12 @@
             cardTitleMap: "🗺️ ਖੇਤਰੀ ਫਸਲ ਪ੍ਰਕੋਪ ਅਤੇ ਕਲੱਸਟਰ ਨਕਸ਼ਾ", lblCoords: "ਲਾਈਵ ਕੋਆਰਡੀਨੇਟਸ", lblMicroclimate: "ਸਥਾਨਕ ਸੂਖਮ ਜਲਵਾਯੂ ਜੋਖਮ",
             lblDetectedDisease: "ਪਛਾਣਿਆ ਗਿਆ ਰੋਗ", lblInfectionSeverity: "ਲਾਗ ਦੀ ਗੰਭੀਰਤਾ ਸੂਚਕਾਂਕ", lblSymptoms: "ਦੇਖੇ ਗਏ ਲੱਛਣ ਪੈਟਰਨ",
             lblOrganic: "🌱 ਜੈਵਿਕ ਉਪਚਾਰ", lblChemical: "🧪 ਰਸਾਇਣਕ ਹੱਲ", awaiting: "ਸਕੈਨ ਇਨਪੁਟ ਦੀ ਉਡੀਕ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ...",
-            userLocationPopup: "<b>ਤੁਹਾਡਾ ਖੇਤ ਸਥਾਨ</b><br/>ਸਰਗਰਮ ਨਿਗਰਾਨੀ ਨੋਡ", cluster1: "ਕਲੱਸਟਰ ਫਾਰਮ #1", cluster2: "ਕਲੱਸਟਰ ਫਾਰਮ #2", cluster3: "ਕਲੱਸਟਰ ਫਾਰਮ #3",
-            threat1: "ਅਰਲੀ ਬਲਾਈਟ ਸਪੋਰ ਚੇਤਾਵਨੀ", threat2: "ਕਣਕ ਪੀਲੀ ਕੁੰਗੀ ਚੇਤਾਵਨੀ", threat3: "ਉੱਚ ਨਮੀ ਉੱਲੀ ਚੇਤਾਵਨੀ",
+            userLocationPopup: "<b>ਤੁਹਾਡਾ ਖੇਤ ਸਥਾਨ</b><br/>ਸਰਗਰਮ ਨਿਗਰਾਨੀ ਨੋਡ", cluster1: "ਕਲੱਸਟਰ ਫਾਰਮ #1", cluster2: "ਕਲੱਸਟਰ ਫਾਰਮ #2",
+            threat1: "ਅਰਲੀ ਬਲਾਈਟ ਸਪੋਰ ਚੇਤਾਵਨੀ", threat2: "ਕਣਕ ਪੀਲੀ ਕੁੰਗੀ ਚੇਤਾਵਨੀ",
             gpsLive: "ਜੀਪੀਐਸ ਸਰਗਰਮ (ਲਾਈਵ)", gpsFallback: "ਜੀਪੀਐਸ ਫਾਲਬੈਕ (ਕਲੱਸਟਰ ਮੋਡ)", locCurrent: "ਮੌਜੂਦਾ ਸਥਾਨ", locDefault: "ਡਿਫੌਲਟ ਜ਼ੋਨ",
-            climateMsg: "ਉੱਚ ਨਮੀ ਦਾ ਪਤਾ ਲੱਗਾ (87%)। ਸਪੋਰ ਫੈਲਾਅ ਸਰਗਰਮ ਹੈ।"
+            broadcastBtn: "📲 ਪਿੰਡ ਦੇ ਗਰੁੱਪ ਵਿੱਚ ਚੇਤਾਵਨੀ ਸਾਂਝੀ ਕਰੋ", alertMsg1: "🚨 *ਕਿਸਾਨ-ਦ੍ਰਿਸ਼ਟੀ ਚੇਤਾਵਨੀ:*\n\nਸਾਡੇ ਖੇਤਰ ਵਿੱਚ ", alertMsg2: " ਦਾ ਪਤਾ ਲੱਗਾ ਹੈ। \n\nਕਿਰਪਾ ਕਰਕੇ ਅੱਜ ਹੀ ਆਪਣੀਆਂ ਫਸਲਾਂ ਦੀ ਜਾਂਚ ਕਰੋ ਅਤੇ ਬਚਾਅ ਦੇ ਉਪਾਅ ਕਰੋ!",
+            climateMsgLive: "ਤਾਪਮਾਨ: {t}°C, ਨਮੀ: {h}%। ਉੱਲੀ ਫੈਲਣ ਦਾ ਉੱਚ ਜੋਖਮ।", climateSafe: "ਤਾਪਮਾਨ: {t}°C, ਨਮੀ: {h}%। ਜਲਵਾਯੂ ਸਥਿਰ ਹੈ।",
+            riskBanner: "⚠️ ਚੇਤਾਵਨੀ: ਤੁਹਾਡੇ ਬਲਾਕ ਵਿੱਚ ਉੱਚ ਨਮੀ ({h}%) ਪਾਈ ਗਈ ਹੈ। ਅਗਲੇ 4 ਦਿਨਾਂ ਵਿੱਚ ਆਲੂ ਦੇ ਬਲਾਈਟ ਦਾ 75% ਜੋਖਮ ਹੈ। ਹੁਣ ਬਚਾਅ ਲਈ ਜੈਵਿਕ ਸਪਰੇਅ ਕਰੋ।"
         }
     };
 
@@ -316,7 +346,7 @@
         "Sugarcane Red Rot": {
             en: { disease: "Sugarcane Red Rot", crop: "Sugarcane", symptoms: "Reddening of internal stalk tissues with white transverse patches and sour odor.", organic: "Select disease-free setts from certified nurseries and treat with hot water.", chemical: "Dip setts in Carbendazim 50% WP @ 1g per liter solution." },
             hi: { disease: "गन्ने का लाल सड़न रोग (Red Rot)", crop: "गन्ना", symptoms: "आंतरिक तने के ऊतकों का लाल होना और खट्टा अल्कोहल जैसा महक आना।", organic: "प्रमाणित नर्सरी से रोग मुक्त सेट चुनें और गर्म पानी से उपचार करें।", chemical: "कार्बेंडाजिम 50% डब्ल्यूपी @ 1 ग्राम प्रति लीटर पानी में सेट डुबोएं।" },
-            bn: { disease: "আখের লাল পচা রোগ", crop: "আখ", symptoms: "অভ্যন্তরীণ কান্ডের টিস্যু লাল হয়ে যাওয়া এবং টক অ্যালকোহলিক গন্ধ।", organic: "রোগমুক্ত বীজ ব্যবহার করুন এবং গরম জলে শোধন করুন।", chemical: "প্রতি লিটার জলে ১ গ্রাম কার্বেন্ডাজিম মিশিয়ে বীজ শোধন করুন।" },
+            bn: { disease: "আখের লাল পচা রোগ", crop: "আখ", symptoms: "অভ্যন্তরীণ কান্ডের টিস্যু লাল হয়ে যাওয়া এবং টক অ্যালকোহলিক গন্ধ।", organic: "রোগমুক্ত বীজ ব্যবহার করুন এবং গরম জলে শোধন করুন।", chemical: "প্রতি লিটার জলে ১ গ্রাম কার্বেন্ডাজিম মিশিয়ে বীজ শোধন করুন।" },
             te: { disease: "చెరకు ఎర్ర కుళ్ళి తెగులు", crop: "చెరకు", symptoms: "కాండం లోపలి భాగం ఎర్రగా మారి పుల్లని వాసన రావడం.", organic: "రోగ నిర్మూలన చేసిన విత్తన కణుపులను ఉపయోగించండి.", chemical: "లీటర్ నీటికి 1 గ్రాము కార్బెంజిమ్ కలిపి నానబెట్టండి." },
             mr: { disease: "उसाचा तांबडा सड रोग", crop: "ऊस", symptoms: "उसाचा आतील भाग लाल होणे आणि आंबट वास सुटणे.", organic: "रोगमुक्त उसाची रोपे वापरा.", chemical: "प्रति लिटर पाण्यात १ ग्रॅम कार्बेन्डाझिम मिसळून प्रक्रिया करा." },
             pa: { disease: "ਗੰਨੇ ਦਾ ਲਾਲ ਸੜਨ ਰੋਗ", crop: "ਗੰਨਾ", symptoms: "ਅੰਦਰੂਨੀ ਤਣੇ ਦਾ ਲਾਲ ਹੋਣਾ ਅਤੇ ਖੱਟਾ ਅਲਕੋਹਲ ਵਰਗਾ ਗੰਧ ਆਉਣਾ।", organic: "ਰੋਗ-ਮੁਕਤ ਬੀਜ ਵਰਤੋ ਅਤੇ ਗਰਮ ਪਾਣੀ ਨਾਲ ਸੋਧ ਕਰੋ।", chemical: "ਪ੍ਰਤੀ ਲੀਟਰ ਪਾਣੀ ਵਿੱਚ 1 ਗ੍ਰਾਮ ਕਾਰਬੈਂਡਾਜ਼ਿਮ ਘੋਲ ਕੇ ਬੀਜ ਸੋਧੋ।" }
@@ -328,20 +358,45 @@
         if (matchedKey && localizedDiseaseData[matchedKey][lang]) {
             return localizedDiseaseData[matchedKey][lang];
         }
-        if (matchedKey && localizedDiseaseData[matchedKey]['en']) {
-            return localizedDiseaseData[matchedKey]['en'];
-        }
         return {
-            disease: rawName,
-            crop: cropName,
+            disease: rawName, crop: cropName,
             symptoms: "Observed chlorosis and tissue necrosis on leaf sample.",
-            organic: "Apply certified organic compost and neem formulation.",
-            chemical: "Consult local extension officer for recommended fungicide."
+            organic: "Apply certified organic compost and neem formulation.", chemical: "Consult local extension officer for recommended fungicide."
         };
     }
 
     let lastKnownLat = 22.5726;
     let lastKnownLon = 88.3639;
+
+    async function fetchLiveWeatherRisk() {
+        try {
+            const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lastKnownLat}&longitude=${lastKnownLon}&current=temperature_2m,relative_humidity_2m`);
+            const data = await response.json();
+            currentHumidity = data.current.relative_humidity_2m;
+            currentTemp = data.current.temperature_2m;
+        } catch (e) {
+            currentHumidity = 84;
+            currentTemp = 31;
+        }
+        updateWeatherUI();
+    }
+
+    function updateWeatherUI() {
+        const lang = document.getElementById('langSelect').value;
+        const t = translations[lang] || translations.en;
+
+        const banner = document.getElementById('weatherBanner');
+        const climateBox = document.getElementById('climateValue');
+        
+        if (currentHumidity >= 50) {
+            banner.style.display = 'block';
+            banner.innerText = t.riskBanner.replace('{h}', currentHumidity);
+            climateBox.innerText = t.climateMsgLive.replace('{h}', currentHumidity).replace('{t}', currentTemp);
+        } else {
+            banner.style.display = 'none';
+            climateBox.innerText = t.climateSafe.replace('{h}', currentHumidity).replace('{t}', currentTemp);
+        }
+    }
 
     function updateGpsText() {
         const lang = document.getElementById('langSelect').value;
@@ -354,7 +409,7 @@
             document.getElementById('gpsStatus').innerText = t.gpsFallback;
             document.getElementById('coordsValue').innerText = `${lastKnownLat.toFixed(4)}° N, ${lastKnownLon.toFixed(4)}° E (${t.locDefault})`;
         }
-        document.getElementById('climateValue').innerText = t.climateMsg;
+        updateWeatherUI();
     }
 
     function renderMapMarkers() {
@@ -367,13 +422,11 @@
         }
         const nearbyOutbreaks = [
             { lat: lastKnownLat + 0.03, lon: lastKnownLon + 0.02, name: t.cluster1, issue: t.threat1 },
-            { lat: lastKnownLat - 0.025, lon: lastKnownLon + 0.04, name: t.cluster2, issue: t.threat2 },
-            { lat: lastKnownLat + 0.015, lon: lastKnownLon - 0.035, name: t.cluster3, issue: t.threat3 }
+            { lat: lastKnownLat - 0.025, lon: lastKnownLon + 0.04, name: t.cluster2, issue: t.threat2 }
         ];
         nearbyOutbreaks.forEach(cluster => {
-            const marker = L.circleMarker([cluster.lat, cluster.lon], {
-                color: '#e76f51', radius: 8, fillColor: '#f4a261', fillOpacity: 0.8
-            }).bindPopup(`<b>${cluster.name}</b><br/>${cluster.issue}`);
+            const marker = L.circleMarker([cluster.lat, cluster.lon], { color: '#e76f51', radius: 8, fillColor: '#f4a261', fillOpacity: 0.8 })
+                .bindPopup(`<b>${cluster.name}</b><br/>${cluster.issue}`);
             outbreakLayerGroup.addLayer(marker);
         });
         outbreakLayerGroup.addTo(map);
@@ -391,6 +444,7 @@
         document.getElementById('scanBtn').innerText = t.scanBtn;
         document.getElementById('cardTitleDiagnosis').innerText = t.cardTitleDiagnosis;
         document.getElementById('audioBtn').innerText = t.audioBtn;
+        document.getElementById('broadcastBtn').innerText = t.broadcastBtn;
         document.getElementById('cardTitleTreatment').innerText = t.cardTitleTreatment;
         document.getElementById('cardTitleMap').innerText = t.cardTitleMap;
         document.getElementById('lblCoords').innerText = t.lblCoords;
@@ -414,7 +468,7 @@
     function updateAnalysisDisplay(data) {
         const lang = document.getElementById('langSelect').value;
         const localized = getLocalizedFallback(data.raw_disease || data.disease, data.crop, lang);
-
+        
         document.getElementById('diseaseOutput').innerText = `${localized.disease} (${localized.crop})`;
         document.getElementById('severityOutput').innerText = data.severity + "% infection detected";
         document.getElementById('symptomsOutput').innerText = localized.symptoms;
@@ -422,11 +476,24 @@
         document.getElementById('chemicalOutput').innerText = localized.chemical;
     }
 
+    function broadcastAlert() {
+        if (!currentAnalysis) {
+            alert('Please run a diagnostic scan first before broadcasting an alert.');
+            return;
+        }
+        const lang = document.getElementById('langSelect').value;
+        const t = translations[lang] || translations.en;
+        const diseaseName = document.getElementById('diseaseOutput').innerText;
+        
+        const alertMessage = `${t.alertMsg1}${diseaseName}${t.alertMsg2}`;
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(alertMessage)}`;
+        
+        window.open(whatsappUrl, '_blank');
+    }
+
     document.addEventListener("DOMContentLoaded", function() {
         map = L.map('map').setView([22.5726, 88.3639], 5);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
         outbreakLayerGroup.addTo(map);
 
         if ("geolocation" in navigator) {
@@ -434,21 +501,19 @@
                 isGpsActive = true;
                 lastKnownLat = position.coords.latitude;
                 lastKnownLon = position.coords.longitude;
-                updateGpsText();
                 map.setView([lastKnownLat, lastKnownLon], 13);
                 if (userMarker) map.removeLayer(userMarker);
                 userMarker = L.marker([lastKnownLat, lastKnownLon]);
-                renderMapMarkers();
                 userMarker.openPopup();
+                
+                fetchLiveWeatherRisk();
             }, error => {
                 isGpsActive = false;
-                updateGpsText();
-                renderMapMarkers();
+                fetchLiveWeatherRisk();
             }, { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 });
         } else {
             isGpsActive = false;
-            updateGpsText();
-            renderMapMarkers();
+            fetchLiveWeatherRisk();
         }
         changeLanguage();
     });
@@ -471,6 +536,9 @@
         if (!selectedFile) return;
         const formData = new FormData();
         formData.append('file', selectedFile);
+        
+        // --- NEW: Sends the selected crop to the Python backend ---
+        formData.append('crop', document.getElementById('cropSelect').value);
 
         const loading = document.getElementById('loadingText');
         loading.style.display = 'block';
@@ -490,16 +558,11 @@
         }
     }
 
-    function readAloud() {
+    // --- NEW: Backend gTTS Audio Function ---
+    async function readAloud() {
         if (!currentAnalysis) {
-            alert('Please run a diagnostic scan first.');
-            return;
+            alert('Please run a diagnostic scan first.'); return;
         }
-        if (!('speechSynthesis' in window)) {
-            alert('Speech synthesis not supported in this browser.');
-            return;
-        }
-        window.speechSynthesis.cancel();
         
         const uiLang = document.getElementById('langSelect').value;
         const selectedAudioLang = document.getElementById('audioLangSelect').value;
@@ -509,31 +572,39 @@
         const orgText = document.getElementById('organicOutput').innerText;
         const chemText = document.getElementById('chemicalOutput').innerText;
         
-        const textToSpeak = `${diseaseText}. ${symptomText}. ${orgText}. ${chemText}`;
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        const fullText = `${diseaseText}. ${symptomText}. ${orgText}. ${chemText}`;
         
-        const localeMap = {
-            hi: 'hi-IN',
-            bn: 'bn-IN',
-            te: 'te-IN',
-            mr: 'mr-IN',
-            pa: 'pa-IN',
-            en: 'en-US'
-        };
-        
-        let targetLang = (selectedAudioLang === 'auto') ? (localeMap[uiLang] || 'en-US') : selectedAudioLang;
-        utterance.lang = targetLang;
-        
-        // Advanced Voice Matching: Force the browser to use a native voice if available
-        if (synthVoices.length === 0) {
-            synthVoices = window.speechSynthesis.getVoices();
+        const audioBtn = document.getElementById('audioBtn');
+        const originalText = audioBtn.innerText;
+        audioBtn.innerText = "⏳ Generating Audio...";
+        audioBtn.disabled = true;
+
+        // Map UI language choice to gTTS language codes
+        const localeMap = { hi: 'hi', bn: 'bn', te: 'te', mr: 'mr', pa: 'pa', en: 'en' };
+        let targetLang = (selectedAudioLang === 'auto') ? (localeMap[uiLang] || 'en') : selectedAudioLang;
+
+        try {
+            const response = await fetch('/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: fullText, lang: targetLang })
+            });
+
+            if (!response.ok) throw new Error('Audio generation failed');
+
+            // Play the exact MP3 generated from Python backend
+            const blob = await response.blob();
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+            
+        } catch (err) {
+            console.error('TTS Error:', err);
+            alert('Unable to play audio. Check your backend terminal for errors.');
+        } finally {
+            audioBtn.innerText = originalText;
+            audioBtn.disabled = false;
         }
-        const matchedVoice = synthVoices.find(v => v.lang.replace('_', '-').startsWith(targetLang) || v.lang.startsWith(targetLang.split('-')[0]));
-        if (matchedVoice) {
-            utterance.voice = matchedVoice;
-        }
-        
-        window.speechSynthesis.speak(utterance);
     }
 </script>
 
