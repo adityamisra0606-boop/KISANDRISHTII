@@ -47,6 +47,13 @@ def get_disease_by_crop_name(crop_input):
     conn.close()
     return dict(row) if row else None
 
+# Added simulated NGO geospatial lookup function
+def get_nearest_ngo(lat, lon):
+    return {
+        "name": "Kisan Sahayata Kendra (Block Field Office)",
+        "contact": "+91-1800-120-4040"
+    }
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -71,15 +78,20 @@ def text_to_speech():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
+    # 1. CHANGED: Match frontend key 'image' instead of 'file'
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image uploaded'}), 400
     
-    file = request.files['file']
+    file = request.files['image']
     if file.filename == '':
         return jsonify({'error': 'Empty file name'}), 400
 
+    # 2. CHANGED: Capture latitude, longitude, and crop from FormData
     selected_crop = request.form.get('crop', 'tomato')
-    print(f"👉 DEBUG: Dropdown selection received -> [{selected_crop}]")
+    latitude = request.form.get('latitude')
+    longitude = request.form.get('longitude')
+    
+    print(f"👉 DEBUG: Scan initiated for [{selected_crop}] at GPS: {latitude}, {longitude}")
     
     disease_record = get_disease_by_crop_name(selected_crop)
 
@@ -92,13 +104,26 @@ def analyze():
             'management': 'Spray Mancozeb or Chlorothalonil @ 2.5g per liter and enforce crop rotation.'
         }
 
+    # 3. CHANGED: Determine NGO proximity if coordinates were provided
+    ngo_notified = False
+    ngo_details = None
+    
+    if latitude and longitude:
+        ngo_notified = True
+        ngo_details = get_nearest_ngo(float(latitude), float(longitude))
+
+    # 4. CHANGED: Map response keys exactly to the updated frontend requirements
     response_payload = {
+        'status': 'success',
         'disease': disease_record['disease_name'],
         'raw_disease': disease_record['disease_name'],
         'crop': disease_record['crop_name'],
         'symptoms': disease_record['symptoms'],
-        'treatment': disease_record['management'],
-        'severity': 78
+        'chemical_treatment': disease_record['management'],
+        'organic_treatment': 'Apply certified organic neem formulation as baseline defense.',
+        'severity': 78,
+        'ngo_notified': ngo_notified,
+        'ngo_details': ngo_details
     }
     
     return jsonify(response_payload)
