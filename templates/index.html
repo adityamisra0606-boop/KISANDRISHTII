@@ -144,14 +144,6 @@
         <div class="card">
             <div class="card-title" id="cardTitleScanner">🔬 AI Leaf Scanner</div>
             
-            <select id="cropSelect" class="lang-dropdown" style="width: 100%; margin-bottom: 15px; border-color: var(--accent);">
-                <option value="potato">🥔 Select Crop: Potato</option>
-                <option value="tomato">🍅 Select Crop: Tomato</option>
-                <option value="wheat">🌾 Select Crop: Wheat</option>
-                <option value="rice">🍚 Select Crop: Rice</option>
-                <option value="sugarcane">🎋 Select Crop: Sugarcane</option>
-            </select>
-
             <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
                 <span class="upload-label" id="uploadInstruction">📁 Click or Drop Affected Leaf Image Here</span>
                 <input type="file" id="fileInput" accept="image/*" onchange="previewFile(event)">
@@ -244,7 +236,6 @@
             climateMsgLive: "Temp: {t}°C, Humidity: {h}%. High fungal propagation risk.", climateSafe: "Temp: {t}°C, Humidity: {h}%. Microclimate is stable.",
             riskBanner: "⚠️ Warning: High humidity ({h}%) detected in your block. 75% risk of Potato Blight over the next 4 days. Apply preventive organic bio-spray now."
         },
-        // ... (Keep the rest of your original language translations here exactly as they were for hi, bn, te, mr, pa)
         hi: {
             heroTitle: "स्मार्ट फसल निदान और जीपीएस सुरक्षा", heroSub: "छोटे किसानों की उपज की रक्षा करने वाली बहुभाषी एआई-संचालित कृषि बुद्धिमत्ता।",
             cardTitleGps: "📍 जीपीएस और आस-पास के खेतों की जानकारी", cardTitleScanner: "🔬 एआई पत्ती स्कैनर", uploadInstruction: "📁 प्रभावित पत्ती की छवि यहां अपलोड करें",
@@ -270,7 +261,7 @@
             threat1: "প্রাথমিক ব্লাইট স্পোর সতর্কতা", threat2: "গম হলুদ মরিচা সতর্কতা",
             gpsLive: "জিপিএস সক্রিয় (লাইভ ফিক্স)", gpsFallback: "জিপিএস ফলব্যাক (ক্লাস্টার মোড)", locCurrent: "বর্তমান অবস্থান", locDefault: "ডিফল্ট জোন",
             broadcastBtn: "📲 গ্রামের গ্রুপে সতর্কতা শেয়ার করুন", alertMsg1: "🚨 *কিষাণ-দৃষ্টি সতর্কতা:*\n\nআমাদের এলাকায় ", alertMsg2: " শনাক্ত করা হয়েছে। \n\nদয়া করে আজই আপনার ফসল পরীক্ষা করুন এবং প্রতিরোধমূলক ব্যবস্থা গ্রহণ করুন!",
-            climateMsgLive: "तापমাত্রা: {t}°C, আর্দ্রতা: {h}%। ছত্রাক বিস্তারের উচ্চ ঝুঁকি।", climateSafe: "তাপমাত্রা: {t}°C, আর্দ্রতা: {h}%। মাইক্রোক্লাইমেট স্থিতিশীল।",
+            climateMsgLive: "तापমাত্রা: {t}°C, আর্দ্রতা: {h}%। ছত্রাক বিস্তারের উচ্চ ঝুঁকি।", climateSafe: "तापমাত্রা: {t}°C, আর্দ্রতা: {h}%। মাইক্রোক্লাইমেট স্থিতিশীল।",
             riskBanner: "⚠️ সতর্কতা: আপনার ব্লকে উচ্চ আর্দ্রতা ({h}%) শনাক্ত হয়েছে। আগামী ৪ দিনে আলুর ব্লাইট (Potato Blight) রোগের ৭৫% ঝুঁকি রয়েছে। প্রতিরোধমূলক জৈব স্প্রে প্রয়োগ করুন।"
         }
     };
@@ -290,7 +281,7 @@
             return localizedDiseaseData[matchedKey][lang];
         }
         return {
-            disease: rawName, crop: cropName,
+            disease: rawName, crop: cropName || "Unknown",
             symptoms: "Observed chlorosis and tissue necrosis on leaf sample.",
             organic: "Apply certified organic compost and neem formulation.", chemical: "Consult local extension officer for recommended fungicide."
         };
@@ -401,7 +392,8 @@
         const lang = document.getElementById('langSelect').value;
         const diseaseName = data.disease || data.raw_disease || "Unknown Disease";
         
-        const localized = getLocalizedFallback(diseaseName, document.getElementById('cropSelect').value, lang);
+        // Use data.crop from the backend AI instead of the removed dropdown
+        const localized = getLocalizedFallback(diseaseName, data.crop, lang);
         
         document.getElementById('diseaseOutput').innerText = `${localized.disease} (${localized.crop})`;
         document.getElementById('severityOutput').innerText = data.severity ? (data.severity + "% infection detected") : "85% infection detected (Critical)";
@@ -477,13 +469,12 @@
         }
     }
 
-    // --- UPDATED: Sends Image & Real-Time Coordinates to the ML Backend ---
+    // --- UPDATED: Sends Image & Real-Time Coordinates to the ML Backend (No Crop Data) ---
     async function runAnalysis() {
         if (!selectedFile) return;
         const formData = new FormData();
         
-        formData.append('image', selectedFile); // Matches request.files['image'] in Flask
-        formData.append('crop', document.getElementById('cropSelect').value);
+        formData.append('image', selectedFile); 
         
         // Push Coordinates to trigger Spatial NGO Match
         formData.append('latitude', lastKnownLat);

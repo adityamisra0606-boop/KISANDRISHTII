@@ -11,22 +11,25 @@ CORS(app)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 DB_PATH = "crop_diseases.db"
 
-def get_disease_by_crop_name(crop_input):
+# --- UPDATED: Search by Disease Name instead of Crop Name ---
+def get_disease_by_name(disease_input):
     if not os.path.exists(DB_PATH):
         return None
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     
-    # Use wildcard search (%crop%) to reliably match crop names regardless of case or spacing
-    search_pattern = f"%{crop_input.strip()}%"
+    # Use wildcard search to reliably match disease names regardless of case
+    search_pattern = f"%{disease_input.strip()}%"
+    
+    # Fetch exact disease data along with newly separated organic and chemical treatments
     cur.execute("""
         SELECT d.disease_name, c.crop_name, p.type_name as pathogen, 
-               d.causal_organism, d.symptoms, d.management 
+               d.causal_organism, d.symptoms, d.organic_treatment, d.chemical_treatment 
         FROM diseases d
         JOIN crops c ON d.crop_id = c.crop_id
         JOIN pathogen_types p ON d.pathogen_type_id = p.pathogen_type_id
-        WHERE c.crop_name LIKE ?
+        WHERE d.disease_name LIKE ?
         LIMIT 1
     """, (search_pattern,))
     
@@ -36,7 +39,7 @@ def get_disease_by_crop_name(crop_input):
     if not row:
         cur.execute("""
             SELECT d.disease_name, c.crop_name, p.type_name as pathogen, 
-                   d.causal_organism, d.symptoms, d.management 
+                   d.causal_organism, d.symptoms, d.organic_treatment, d.chemical_treatment 
             FROM diseases d
             JOIN crops c ON d.crop_id = c.crop_id
             JOIN pathogen_types p ON d.pathogen_type_id = p.pathogen_type_id
@@ -47,7 +50,7 @@ def get_disease_by_crop_name(crop_input):
     conn.close()
     return dict(row) if row else None
 
-# Added simulated NGO geospatial lookup function
+# Simulated NGO geospatial lookup function
 def get_nearest_ngo(lat, lon):
     return {
         "name": "Kisan Sahayata Kendra (Block Field Office)",
@@ -78,7 +81,6 @@ def text_to_speech():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    # 1. CHANGED: Match frontend key 'image' instead of 'file'
     if 'image' not in request.files:
         return jsonify({'error': 'No image uploaded'}), 400
     
@@ -86,25 +88,32 @@ def analyze():
     if file.filename == '':
         return jsonify({'error': 'Empty file name'}), 400
 
-    # 2. CHANGED: Capture latitude, longitude, and crop from FormData
-    selected_crop = request.form.get('crop', 'tomato')
+    # Capture location from the frontend (Crop is no longer sent!)
     latitude = request.form.get('latitude')
     longitude = request.form.get('longitude')
     
-    print(f"👉 DEBUG: Scan initiated for [{selected_crop}] at GPS: {latitude}, {longitude}")
+    # ==========================================
+    # --- SIMULATED AI COMPUTER VISION LAYER ---
+    # ==========================================
+    # In a real deployment, the uploaded 'file' pixels would be analyzed by your ML model here.
+    # The model predicts the disease directly:
+    predicted_ai_disease = 'Tomato Early Blight'
     
-    disease_record = get_disease_by_crop_name(selected_crop)
+    print(f"👉 DEBUG: AI Model predicted [{predicted_ai_disease}] at GPS: {latitude}, {longitude}")
+    
+    # Query the SQLite database using the AI's disease prediction
+    disease_record = get_disease_by_name(predicted_ai_disease)
 
     if not disease_record:
         disease_record = {
-            'disease_name': 'Tomato Early Blight',
-            'crop_name': 'Tomato',
-            'pathogen': 'Fungal',
-            'symptoms': 'Concentric ring lesions on older leaves, stem cankers, fruit rot near stem end.',
-            'management': 'Spray Mancozeb or Chlorothalonil @ 2.5g per liter and enforce crop rotation.'
+            'disease_name': 'Unknown Disease',
+            'crop_name': 'Unknown',
+            'symptoms': 'Scan inconclusive.',
+            'organic_treatment': 'Consult local agricultural expert.',
+            'chemical_treatment': 'Consult local agricultural expert.'
         }
 
-    # 3. CHANGED: Determine NGO proximity if coordinates were provided
+    # Determine NGO proximity if coordinates were provided
     ngo_notified = False
     ngo_details = None
     
@@ -112,16 +121,16 @@ def analyze():
         ngo_notified = True
         ngo_details = get_nearest_ngo(float(latitude), float(longitude))
 
-    # 4. CHANGED: Map response keys exactly to the updated frontend requirements
+    # Construct JSON payload with dynamic database results
     response_payload = {
         'status': 'success',
         'disease': disease_record['disease_name'],
         'raw_disease': disease_record['disease_name'],
-        'crop': disease_record['crop_name'],
+        'crop': disease_record['crop_name'], # Crop is now automatically mapped by the database
         'symptoms': disease_record['symptoms'],
-        'chemical_treatment': disease_record['management'],
-        'organic_treatment': 'Apply certified organic neem formulation as baseline defense.',
-        'severity': 78,
+        'organic_treatment': disease_record['organic_treatment'],
+        'chemical_treatment': disease_record['chemical_treatment'],
+        'severity': 85,
         'ngo_notified': ngo_notified,
         'ngo_details': ngo_details
     }
