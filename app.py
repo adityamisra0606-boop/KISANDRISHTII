@@ -61,6 +61,26 @@ def get_nearest_ngo(lat, lon):
 def index():
     return render_template('index.html')
 
+# ==========================================
+# --- NEW: API Route for Disease Encyclopedia ---
+# ==========================================
+@app.route('/api/diseases', methods=['GET'])
+def get_all_diseases():
+    if not os.path.exists(DB_PATH):
+        return jsonify([])
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT d.disease_name, c.crop_name, d.symptoms, d.organic_treatment, d.chemical_treatment 
+        FROM diseases d
+        JOIN crops c ON d.crop_id = c.crop_id
+        ORDER BY c.crop_name ASC
+    """)
+    rows = [dict(row) for row in cur.fetchall()]
+    conn.close()
+    return jsonify(rows)
+
 @app.route('/tts', methods=['POST'])
 def text_to_speech():
     data = request.get_json()

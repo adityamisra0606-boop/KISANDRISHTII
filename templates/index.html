@@ -96,6 +96,13 @@
         .metric-value { font-size: 0.95rem; color: #f8f9fa; line-height: 1.4; }
         .full-width { grid-column: 1 / -1; }
         #map { width: 100%; height: 380px; border-radius: 10px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1); }
+        
+        /* NEW: Modal Styles for Encyclopedia */
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(5px); }
+        .modal-content { background-color: var(--dark); margin: 5% auto; padding: 20px; border: 1px solid var(--accent); width: 80%; max-width: 800px; border-radius: 12px; color: white; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: white; }
+        .encyclopedia-item { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 15px 0; }
     </style>
 </head>
 <body>
@@ -156,7 +163,6 @@
         <div class="card">
             <div class="card-title" id="cardTitleDiagnosis">📋 Pathological Diagnosis</div>
             
-            <!-- NEW NGO ALERT BOX -->
             <div id="ngoAlertBox" style="display: none; background: rgba(231, 111, 81, 0.2); border: 1px solid var(--warning); padding: 12px; border-radius: 8px; margin-bottom: 15px; color: #ffadad;">
                 ⚠️ <strong>Emergency NGO Notified:</strong> <br>
                 <span id="ngoDetails" style="color: white; font-size: 0.95rem; font-weight: 600;"></span>
@@ -204,12 +210,61 @@
                 <div class="metric-value" id="chemicalOutput">--</div>
             </div>
         </div>
+        
+        <!-- ========================================== -->
+        <!-- NEW SECTION: FARMER RESOURCE HUB           -->
+        <!-- ========================================== -->
+        <div class="full-width" style="margin-top: 20px;">
+            <h2 style="color: var(--highlight); border-bottom: 2px solid var(--accent); padding-bottom: 10px;">🌾 Farmer Resource Hub</h2>
+        </div>
+
+        <!-- 1. Govt Schemes -->
+        <div class="card">
+            <div class="card-title">🏛️ Govt. Financial Aid</div>
+            <p style="font-size: 0.9rem; color: #b7e4c7; margin-bottom: 15px;">Access official Govt. of India financial schemes and subsidies.</p>
+            <a href="https://pmkisan.gov.in/" target="_blank" class="btn" style="display:block; text-align:center; text-decoration:none; margin-bottom:10px; background:#ffd166; color:#081c15;">Apply for PM-KISAN Yojana</a>
+            <a href="https://eshram.gov.in/" target="_blank" class="btn" style="display:block; text-align:center; text-decoration:none; background:#52b788; color:#081c15;">Apply for Kisan Credit Card</a>
+        </div>
+
+        <!-- 2. Fertilizer Booking -->
+        <div class="card">
+            <div class="card-title">🛒 Fertilizer Booking</div>
+            <p style="font-size: 0.9rem; color: #b7e4c7; margin-bottom: 15px;">Request subsidized fertilizers directly to your nearest block office.</p>
+            <select id="fertilizerType" class="lang-dropdown" style="width:100%; margin-bottom:10px; border-color: var(--accent);">
+                <option value="urea">Urea (Subsidized)</option>
+                <option value="dap">DAP (Di-ammonium Phosphate)</option>
+                <option value="npk">NPK Complex</option>
+                <option value="neem">Neem Cake (Organic)</option>
+            </select>
+            <button class="btn" onclick="orderFertilizer()">Request Stock Delivery</button>
+            <p id="fertSuccess" style="color: var(--accent); font-size: 0.85rem; margin-top: 10px; display: none;">✅ Request routed to local NGO!</p>
+        </div>
+
+        <!-- 3. Disease Encyclopedia -->
+        <div class="card">
+            <div class="card-title">📚 Disease Encyclopedia</div>
+            <p style="font-size: 0.9rem; color: #b7e4c7; margin-bottom: 15px;">Browse our complete verified database of crop diseases and cures.</p>
+            <button class="btn" onclick="openEncyclopedia()" style="background: rgba(82, 183, 136, 0.2); color: white; border: 1px solid var(--accent);">Browse Database</button>
+        </div>
+
+        <!-- ========================================== -->
 
         <div class="card full-width">
             <div class="card-title" id="cardTitleMap">🗺️ Regional Farm Outbreak & Threat Cluster Map</div>
             <div id="map"></div>
         </div>
 
+    </div>
+
+    <!-- NEW: The Encyclopedia Modal -->
+    <div id="encyclopediaModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEncyclopedia()">&times;</span>
+            <h2 style="color: var(--accent); margin-bottom: 15px;">Verified Disease Database</h2>
+            <div id="encyclopediaList" style="max-height: 60vh; overflow-y: auto;">
+                <p>Loading database from server...</p>
+            </div>
+        </div>
     </div>
 
 <script>
@@ -272,7 +327,6 @@
             hi: { disease: "आलू का अतीव झुलसा (Early Blight)", crop: "आलू", symptoms: "पुरानी पत्तियों पर गहरे भूरे से काले संकेंद्रित छल्ले, पत्तियां पीली पड़कर गिरना।", organic: "लक्षित नीम के तेल के अर्क (5 मिली/लीटर) का छिड़काव करें।", chemical: "2.5 ग्राम मैंकोजेब 75% डब्ल्यूपी प्रति लीटर पानी में मिलाकर छिड़काव करें।" },
             bn: { disease: "আলুর প্রথমিক ব্লাইট", crop: "আলু", symptoms: "পুরানো পাতায় ঘনীভূত রিং ক্ষত, হলুদ হয়ে যাওয়া এবং পাতা ঝরে যাওয়া।", organic: "নিমের তেল এক্সট্রাক্ট (৫ মিলি/লিটার) প্রয়োগ করুন।", chemical: "প্রতি লিটার পানিতে ২.৫ গ্রাম ম্যানকোজেব ৭১% ডব্লিউপি স্প্রে করুন।" }
         }
-        // ... (Keep your original disease mapping here)
     };
 
     function getLocalizedFallback(rawName, cropName, lang) {
@@ -306,17 +360,16 @@
     function updateWeatherUI() {
         const lang = document.getElementById('langSelect').value;
         const t = translations[lang] || translations.en;
-
         const banner = document.getElementById('weatherBanner');
         const climateBox = document.getElementById('climateValue');
         
         if (currentHumidity >= 50) {
             banner.style.display = 'block';
-            banner.innerText = t.riskBanner.replace('{h}', currentHumidity);
-            climateBox.innerText = t.climateMsgLive.replace('{h}', currentHumidity).replace('{t}', currentTemp);
+            banner.innerText = t.riskBanner ? t.riskBanner.replace('{h}', currentHumidity) : `⚠️ High humidity (${currentHumidity}%) detected.`;
+            climateBox.innerText = t.climateMsgLive ? t.climateMsgLive.replace('{h}', currentHumidity).replace('{t}', currentTemp) : `Temp: ${currentTemp}°C, Hum: ${currentHumidity}%`;
         } else {
             banner.style.display = 'none';
-            climateBox.innerText = t.climateSafe.replace('{h}', currentHumidity).replace('{t}', currentTemp);
+            climateBox.innerText = t.climateSafe ? t.climateSafe.replace('{h}', currentHumidity).replace('{t}', currentTemp) : `Temp: ${currentTemp}°C, Hum: ${currentHumidity}%`;
         }
     }
 
@@ -325,11 +378,11 @@
         const t = translations[lang] || translations.en;
         
         if (isGpsActive) {
-            document.getElementById('gpsStatus').innerText = t.gpsLive;
-            document.getElementById('coordsValue').innerText = `${lastKnownLat.toFixed(4)}° N, ${lastKnownLon.toFixed(4)}° E (${t.locCurrent})`;
+            document.getElementById('gpsStatus').innerText = t.gpsLive || "GPS Active";
+            document.getElementById('coordsValue').innerText = `${lastKnownLat.toFixed(4)}° N, ${lastKnownLon.toFixed(4)}° E (${t.locCurrent || "Current"})`;
         } else {
-            document.getElementById('gpsStatus').innerText = t.gpsFallback;
-            document.getElementById('coordsValue').innerText = `${lastKnownLat.toFixed(4)}° N, ${lastKnownLon.toFixed(4)}° E (${t.locDefault})`;
+            document.getElementById('gpsStatus').innerText = t.gpsFallback || "GPS Fallback";
+            document.getElementById('coordsValue').innerText = `${lastKnownLat.toFixed(4)}° N, ${lastKnownLon.toFixed(4)}° E (${t.locDefault || "Default"})`;
         }
         updateWeatherUI();
     }
@@ -339,12 +392,12 @@
         const t = translations[lang] || translations.en;
         outbreakLayerGroup.clearLayers();
         if (userMarker) {
-            userMarker.bindPopup(t.userLocationPopup);
+            userMarker.bindPopup(t.userLocationPopup || "Your Farm Location");
             outbreakLayerGroup.addLayer(userMarker);
         }
         const nearbyOutbreaks = [
-            { lat: lastKnownLat + 0.03, lon: lastKnownLon + 0.02, name: t.cluster1, issue: t.threat1 },
-            { lat: lastKnownLat - 0.025, lon: lastKnownLon + 0.04, name: t.cluster2, issue: t.threat2 }
+            { lat: lastKnownLat + 0.03, lon: lastKnownLon + 0.02, name: t.cluster1 || "Cluster 1", issue: t.threat1 || "Blight Warning" },
+            { lat: lastKnownLat - 0.025, lon: lastKnownLon + 0.04, name: t.cluster2 || "Cluster 2", issue: t.threat2 || "Rust Alert" }
         ];
         nearbyOutbreaks.forEach(cluster => {
             const marker = L.circleMarker([cluster.lat, cluster.lon], { color: '#e76f51', radius: 8, fillColor: '#f4a261', fillOpacity: 0.8 })
@@ -358,52 +411,48 @@
         const lang = document.getElementById('langSelect').value;
         const t = translations[lang] || translations.en;
 
-        document.getElementById('heroTitle').innerText = t.heroTitle;
-        document.getElementById('heroSub').innerText = t.heroSub;
-        document.getElementById('cardTitleGps').innerText = t.cardTitleGps;
-        document.getElementById('cardTitleScanner').innerText = t.cardTitleScanner;
-        document.getElementById('uploadInstruction').innerText = t.uploadInstruction;
-        document.getElementById('scanBtn').innerText = t.scanBtn;
-        document.getElementById('cardTitleDiagnosis').innerText = t.cardTitleDiagnosis;
-        document.getElementById('audioBtn').innerText = t.audioBtn;
-        document.getElementById('broadcastBtn').innerText = t.broadcastBtn;
-        document.getElementById('cardTitleTreatment').innerText = t.cardTitleTreatment;
-        document.getElementById('cardTitleMap').innerText = t.cardTitleMap;
-        document.getElementById('lblCoords').innerText = t.lblCoords;
-        document.getElementById('lblMicroclimate').innerText = t.lblMicroclimate;
-        document.getElementById('lblDetectedDisease').innerText = t.lblDetectedDisease;
-        document.getElementById('lblInfectionSeverity').innerText = t.lblInfectionSeverity;
-        document.getElementById('lblSymptoms').innerText = t.lblSymptoms;
-        document.getElementById('lblOrganic').innerText = t.lblOrganic;
-        document.getElementById('lblChemical').innerText = t.lblChemical;
+        if(t.heroTitle) document.getElementById('heroTitle').innerText = t.heroTitle;
+        if(t.heroSub) document.getElementById('heroSub').innerText = t.heroSub;
+        if(t.cardTitleGps) document.getElementById('cardTitleGps').innerText = t.cardTitleGps;
+        if(t.cardTitleScanner) document.getElementById('cardTitleScanner').innerText = t.cardTitleScanner;
+        if(t.uploadInstruction) document.getElementById('uploadInstruction').innerText = t.uploadInstruction;
+        if(t.scanBtn) document.getElementById('scanBtn').innerText = t.scanBtn;
+        if(t.cardTitleDiagnosis) document.getElementById('cardTitleDiagnosis').innerText = t.cardTitleDiagnosis;
+        if(t.audioBtn) document.getElementById('audioBtn').innerText = t.audioBtn;
+        if(t.broadcastBtn) document.getElementById('broadcastBtn').innerText = t.broadcastBtn;
+        if(t.cardTitleTreatment) document.getElementById('cardTitleTreatment').innerText = t.cardTitleTreatment;
+        if(t.cardTitleMap) document.getElementById('cardTitleMap').innerText = t.cardTitleMap;
+        if(t.lblCoords) document.getElementById('lblCoords').innerText = t.lblCoords;
+        if(t.lblMicroclimate) document.getElementById('lblMicroclimate').innerText = t.lblMicroclimate;
+        if(t.lblDetectedDisease) document.getElementById('lblDetectedDisease').innerText = t.lblDetectedDisease;
+        if(t.lblInfectionSeverity) document.getElementById('lblInfectionSeverity').innerText = t.lblInfectionSeverity;
+        if(t.lblSymptoms) document.getElementById('lblSymptoms').innerText = t.lblSymptoms;
+        if(t.lblOrganic) document.getElementById('lblOrganic').innerText = t.lblOrganic;
+        if(t.lblChemical) document.getElementById('lblChemical').innerText = t.lblChemical;
 
         updateGpsText();
 
         if (!currentAnalysis) {
-            document.getElementById('diseaseOutput').innerText = t.awaiting;
+            document.getElementById('diseaseOutput').innerText = t.awaiting || "Awaiting scan...";
         } else {
             updateAnalysisDisplay(currentAnalysis);
         }
         renderMapMarkers();
     }
 
-    // --- UPDATED: Connects Backend Results & Triggers NGO Alert ---
     function updateAnalysisDisplay(data) {
         const lang = document.getElementById('langSelect').value;
         const diseaseName = data.disease || data.raw_disease || "Unknown Disease";
         
-        // Use data.crop from the backend AI instead of the removed dropdown
         const localized = getLocalizedFallback(diseaseName, data.crop, lang);
         
         document.getElementById('diseaseOutput').innerText = `${localized.disease} (${localized.crop})`;
         document.getElementById('severityOutput').innerText = data.severity ? (data.severity + "% infection detected") : "85% infection detected (Critical)";
         
-        // Prioritize backend-provided treatment text, fallback to frontend translation dictionary
         document.getElementById('symptomsOutput').innerText = data.symptoms || localized.symptoms;
         document.getElementById('organicOutput').innerText = data.organic_treatment || localized.organic;
         document.getElementById('chemicalOutput').innerText = data.chemical_treatment || localized.chemical;
 
-        // NGO Alert Activation
         const ngoBox = document.getElementById('ngoAlertBox');
         if (data.ngo_notified && data.ngo_details) {
             ngoBox.style.display = 'block';
@@ -422,7 +471,7 @@
         const t = translations[lang] || translations.en;
         const diseaseName = document.getElementById('diseaseOutput').innerText;
         
-        const alertMessage = `${t.alertMsg1}${diseaseName}${t.alertMsg2}`;
+        const alertMessage = `${t.alertMsg1 || "Alert: "}${diseaseName}${t.alertMsg2 || " detected in area."}`;
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(alertMessage)}`;
         
         window.open(whatsappUrl, '_blank');
@@ -469,14 +518,10 @@
         }
     }
 
-    // --- UPDATED: Sends Image & Real-Time Coordinates to the ML Backend (No Crop Data) ---
     async function runAnalysis() {
         if (!selectedFile) return;
         const formData = new FormData();
-        
         formData.append('image', selectedFile); 
-        
-        // Push Coordinates to trigger Spatial NGO Match
         formData.append('latitude', lastKnownLat);
         formData.append('longitude', lastKnownLon);
 
@@ -546,6 +591,54 @@
         } finally {
             audioBtn.innerText = originalText;
             audioBtn.disabled = false;
+        }
+    }
+
+    // --- NEW JAVASCRIPT FUNCTIONS FOR RESOURCE HUB ---
+    
+    function orderFertilizer() {
+        const type = document.getElementById('fertilizerType').options[document.getElementById('fertilizerType').selectedIndex].text;
+        document.getElementById('fertSuccess').style.display = 'block';
+        document.getElementById('fertSuccess').innerText = `✅ Request for ${type} sent to local NGO at coordinates ${lastKnownLat.toFixed(4)}, ${lastKnownLon.toFixed(4)}.`;
+        
+        setTimeout(() => { 
+            document.getElementById('fertSuccess').style.display = 'none'; 
+        }, 5000);
+    }
+
+    async function openEncyclopedia() {
+        document.getElementById('encyclopediaModal').style.display = 'block';
+        const listDiv = document.getElementById('encyclopediaList');
+        
+        try {
+            const response = await fetch('/api/diseases');
+            const diseases = await response.json();
+            
+            listDiv.innerHTML = ''; // clear loading text
+            diseases.forEach(d => {
+                listDiv.innerHTML += `
+                    <div class="encyclopedia-item">
+                        <h3 style="color: #ffd166; margin-bottom: 5px;">${d.disease_name} <span style="color:#b7e4c7; font-size: 0.9rem;">(Crop: ${d.crop_name})</span></h3>
+                        <p style="margin-bottom: 8px;"><strong>Symptoms:</strong> ${d.symptoms}</p>
+                        <p style="color: #52b788; margin-top: 5px;"><strong>Organic Action:</strong> ${d.organic_treatment}</p>
+                        <p style="color: #e76f51;"><strong>Chemical Action:</strong> ${d.chemical_treatment}</p>
+                    </div>
+                `;
+            });
+        } catch (error) {
+            listDiv.innerHTML = "<p>Error loading database. Make sure your Python backend is running.</p>";
+        }
+    }
+
+    function closeEncyclopedia() {
+        document.getElementById('encyclopediaModal').style.display = 'none';
+    }
+
+    // Allow user to close the modal by clicking anywhere outside of it
+    window.onclick = function(event) {
+        const modal = document.getElementById('encyclopediaModal');
+        if (event.target == modal) {
+            closeEncyclopedia();
         }
     }
 </script>
